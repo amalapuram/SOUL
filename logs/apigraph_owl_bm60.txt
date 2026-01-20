@@ -1,0 +1,1158 @@
+seed is 1
+Argument              Value               
+********************************************************************************
+seed                  1                   
+ds                    apigraph            
+gpu                   0                   
+filename              /tmp/tmpi_hygs0a    
+b_m                   0.6                 
+lr                    0.01                
+wd                    1e-06               
+label_ratio           0.2                 
+nps                   10000               
+bma                   0.8                 
+alpha                 9.0                 
+lab_samp_in_mem_ratio  0.1                 
+bool_gpm              True                
+mem_strat             equal               
+training_cutoff       4                   
+bool_closs            False               
+mlps                  1                   
+n_epochs              100                 
+beta                  0.1                 
+grid_search           False               
+batch_size            32                  
+********************************************************************************
+(27472, 1160)
+loading model parameter
+(27472, 1160)
+(27472, 1160)
+time stamp is: 08_Feb_08_38_32
+Is lazy training: True
+task order [('0', '1'), ('2', '3'), ('4', '5'), ('6', '7'), ('8', '9'), ('10', '11'), ('12', '13')]
+
+Training on first 4 tasks...
+
+loading task: 0
+validation dataset size (1338, 1159)
+Training task: 0
+Class Imbalance for task 0 (% of minority samples)= 0.10475754803293687
+
+[  0/100] train_loss: 0.16348 PR-AUC (I): 0.97003
+Validation PR-AUC (inliers) increased (inf --> 0.970033).  Saving model ...
+[  1/100] train_loss: 0.05246 PR-AUC (I): 0.96871
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.03266 PR-AUC (I): 0.97325
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01802 PR-AUC (I): 0.92436
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+4372
+458 3914
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 1
+validation dataset size (2126, 1159)
+Training task: 1
+Class Imbalance for task 1 (% of minority samples)= 0.10451408855664175
+
+X shape: (34784, 1159)
+Number of predicted 0s: 31141
+Number of predicted 1s: 3643
+Estimated no. of class 0 samples = 31145
+Estimated no. of class 1 samples = 3639
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([0.9922, 0.9912, 0.9911, 0.9910], device='cuda:0')
+
+classes in memory: [0. 1.]
+
+Number of class 0 agreements (between model and member inference): 6229/6229 - (100.000%)
+Number of class 0 common agreements with ground truth: 6229/6229 - (100.000%)
+Time taken for member inference = 7.263591051101685seconds
+
+Number of class 1 agreements (between model and member inference): 719/727 - (98.900)%
+Number of class 1 common agreements with ground truth: 710/719 - (98.748%)
+Time taken for member inference = 0.7572832107543945seconds
+
+Current task truth agreement fractions = [1.0, 0.9874826147426982]
+0 0
+0.9 0.8887343532684283
+
+[  0/100] train_loss: 0.32020 PR-AUC (I): 0.92070
+Validation PR-AUC (inliers) increased (inf --> 0.920705).  Saving model ...
+[  1/100] train_loss: 0.12843 PR-AUC (I): 0.93246
+Validation PR-AUC (inliers) increased (0.920705 --> 0.932463).  Saving model ...
+[  2/100] train_loss: 0.09756 PR-AUC (I): 0.94527
+Validation PR-AUC (inliers) increased (0.932463 --> 0.945268).  Saving model ...
+[  3/100] train_loss: 0.08890 PR-AUC (I): 0.93826
+EarlyStopping counter: 1 out of 3
+[  4/100] train_loss: 0.07301 PR-AUC (I): 0.94674
+EarlyStopping counter: 2 out of 3
+[  5/100] train_loss: 0.06647 PR-AUC (I): 0.94868
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6956
+727 6229
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 2
+validation dataset size (2557, 1159)
+Training task: 2
+Class Imbalance for task 2 (% of minority samples)= 0.10397517010863078
+
+X shape: (41887, 1159)
+Number of predicted 0s: 38669
+Number of predicted 1s: 3218
+Estimated no. of class 0 samples = 37514
+Estimated no. of class 1 samples = 4373
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3.]
+
+Number of class 0 agreements (between model and member inference): 7470/7502 - (99.573%)
+Number of class 0 common agreements with ground truth: 7298/7470 - (97.697%)
+Time taken for member inference = 8.009323835372925seconds
+
+Number of class 1 agreements (between model and member inference): 852/874 - (97.483)%
+Number of class 1 common agreements with ground truth: 844/852 - (99.061%)
+Time taken for member inference = 0.9173965454101562seconds
+
+Current task truth agreement fractions = [0.9769745649263721, 0.9906103286384976]
+0.9 0.8887343532684283
+0.9692771084337349 0.9804227311014908
+
+[  0/100] train_loss: 0.26820 PR-AUC (I): 0.92016
+Validation PR-AUC (inliers) increased (inf --> 0.920161).  Saving model ...
+[  1/100] train_loss: 0.23253 PR-AUC (I): 0.92236
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.18450 PR-AUC (I): 0.92962
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.16494 PR-AUC (I): 0.93446
+Validation PR-AUC (inliers) increased (0.920161 --> 0.934464).  Saving model ...
+[  4/100] train_loss: 0.15196 PR-AUC (I): 0.93769
+EarlyStopping counter: 1 out of 3
+[  5/100] train_loss: 0.12850 PR-AUC (I): 0.93560
+EarlyStopping counter: 2 out of 3
+[  6/100] train_loss: 0.12397 PR-AUC (I): 0.93484
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8377
+871 7506
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 3
+validation dataset size (2499, 1159)
+Training task: 3
+Class Imbalance for task 3 (% of minority samples)= 0.10038891589693728
+
+X shape: (41140, 1159)
+Number of predicted 0s: 37808
+Number of predicted 1s: 3332
+Estimated no. of class 0 samples = 36886
+Estimated no. of class 1 samples = 4254
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5.]
+
+Number of class 0 agreements (between model and member inference): 7317/7377 - (99.187%)
+Number of class 0 common agreements with ground truth: 7315/7317 - (99.973%)
+Time taken for member inference = 8.178927421569824seconds
+
+Number of class 1 agreements (between model and member inference): 849/850 - (99.882)%
+Number of class 1 common agreements with ground truth: 848/849 - (99.882%)
+Time taken for member inference = 0.9922654628753662seconds
+
+Current task truth agreement fractions = [0.999726663933306, 0.9988221436984688]
+0.9692771084337349 0.9804227311014908
+0.9966817083833489 0.996982202438771
+
+[  0/100] train_loss: 0.21879 PR-AUC (I): 0.93086
+Validation PR-AUC (inliers) increased (inf --> 0.930857).  Saving model ...
+[  1/100] train_loss: 0.18125 PR-AUC (I): 0.93057
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.16823 PR-AUC (I): 0.93201
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.15917 PR-AUC (I): 0.93169
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8228
+826 7402
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+Open world setting training from task 4 onwards...
+Agreement fraction: class 0 = 0.4, class 1 = 0.4
+Average CI over training tasks (% of minority samples)= 0.10340893064878666
+
+loading task: 4
+validation dataset size (2435, 1159)
+Training task: 4
+X shape: (40124, 1159)
+Number of predicted 0s: 36778
+Number of predicted 1s: 3346
+Estimated no. of class 0 samples = 35975
+Estimated no. of class 1 samples = 4149
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7.]
+New classes added to memory: 8.0, 9.0
+
+Number of class 0 agreements (between model and member inference): 7121/7195 - (98.972%)
+Number of class 0 common agreements with ground truth: 7119/7121 - (99.972%)
+Time taken for member inference = 7.868198871612549seconds
+No. of self-labelled samples (class 0): 2848
+
+Number of class 1 agreements (between model and member inference): 827/829 - (99.759)%
+Number of class 1 common agreements with ground truth: 822/827 - (99.395%)
+Time taken for member inference = 0.8759119510650635seconds
+No. of self-labelled samples (class 1): 330
+
+Total no. of self-labeled samples = 3178 (0: 2848, 1: 330)
+No. of security analyst-labelled samples: 4846 (0:4347, 1:499)
+Total no. of labelled samples: 8024
+No. of unlabelled samples: (32127, 1159)
+
+[  0/100] train_loss: 46.42914 PR-AUC (I): 0.20848
+Validation PR-AUC (inliers) increased (inf --> 0.208482).  Saving model ...
+[  1/100] train_loss: 49.71541 PR-AUC (I): 0.20851
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 49.46544 PR-AUC (I): 0.20850
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 48.42354 PR-AUC (I): 0.15988
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8024
+831 7193
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 5
+validation dataset size (1179, 1159)
+Training task: 5
+X shape: (19551, 1159)
+Number of predicted 0s: 3005
+Number of predicted 1s: 16546
+Estimated no. of class 0 samples = 17530
+Estimated no. of class 1 samples = 2021
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7. 8. 9.]
+New classes added to memory: 10.0, 11.0
+
+Number of class 0 agreements (between model and member inference): 2460/2980 - (82.550%)
+Number of class 0 common agreements with ground truth: 2164/2460 - (87.967%)
+Time taken for member inference = 3.47001576423645seconds
+No. of self-labelled samples (class 0): 984
+
+Number of class 1 agreements (between model and member inference): 48/404 - (11.881)%
+Number of class 1 common agreements with ground truth: 25/48 - (52.083%)
+Time taken for member inference = 0.5551838874816895seconds
+No. of self-labelled samples (class 1): 19
+
+Total no. of self-labeled samples = 1003 (0: 984, 1: 19)
+No. of security analyst-labelled samples: 2907 (0:2522, 1:385)
+Total no. of labelled samples: 3910
+No. of unlabelled samples: (15646, 1159)
+
+[  0/100] train_loss: 52.93406 PR-AUC (I): 0.19339
+Validation PR-AUC (inliers) increased (inf --> 0.193387).  Saving model ...
+[  1/100] train_loss: 53.37533 PR-AUC (I): 0.19338
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 53.11645 PR-AUC (I): 0.19338
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 53.21156 PR-AUC (I): 0.19338
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+3910
+476 3434
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 6
+validation dataset size (1810, 1159)
+Training task: 6
+X shape: (30014, 1159)
+Number of predicted 0s: 2525
+Number of predicted 1s: 27489
+Estimated no. of class 0 samples = 26911
+Estimated no. of class 1 samples = 3103
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [ 0.  1.  2.  3.  4.  5.  6.  7.  8.  9. 10. 11.]
+New classes added to memory: 12.0, 13.0
+
+Number of class 0 agreements (between model and member inference): 2148/2524 - (85.103%)
+Number of class 0 common agreements with ground truth: 1903/2148 - (88.594%)
+Time taken for member inference = 2.622851848602295seconds
+No. of self-labelled samples (class 0): 859
+
+Number of class 1 agreements (between model and member inference): 53/620 - (8.548)%
+Number of class 1 common agreements with ground truth: 39/53 - (73.585%)
+Time taken for member inference = 0.6440200805664062seconds
+No. of self-labelled samples (class 1): 21
+
+Total no. of self-labeled samples = 880 (0: 859, 1: 21)
+No. of security analyst-labelled samples: 5122 (0:4523, 1:599)
+Total no. of labelled samples: 6002
+No. of unlabelled samples: (24021, 1159)
+
+[  0/100] train_loss: 57.00817 PR-AUC (I): 0.18413
+Validation PR-AUC (inliers) increased (inf --> 0.184130).  Saving model ...
+[  1/100] train_loss: 56.84473 PR-AUC (I): 0.18413
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 56.81776 PR-AUC (I): 0.18413
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 56.79097 PR-AUC (I): 0.18413
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6002
+674 5328
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+testing on task 0: (7328, 1159)
+testing on task 1: (11658, 1159)
+testing on task 2: (14041, 1159)
+testing on task 3: (13813, 1159)
+AUT(prauc inliers,4) := 0.9423377696104701
+AUT(prauc outliers,4) := 0.3430071639627658
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.948912 | 0.935193 | 0.938628 | 0.957473 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.358265 | 0.303721 | 0.314627 | 0.463082 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 2.0446279048919678s
+
+testing on task 4: (13477, 1159)
+testing on task 5: (6582, 1159)
+testing on task 6: (10105, 1159)
+AUT(prauc inliers,3) := 0.8828023328217172
+AUT(prauc outliers,3) := 0.3672497659233473
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.906128 | 0.849062 | 0.926957 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.378269 | 0.306867 | 0.476996 |
++----------------------+----------+----------+----------+
+dataset loading time: 1.4310352802276611s
+
+************** OWL labelling stats ****************
+Total number of self-labelled samples = 5061
+Class 0 count = 4691
+Class 1 count = 370
+Total number of analyst-labelled samples = 12875
+Class 0 count = 11392
+Class 1 count = 1483
+Total execution time is--- 742.086733341217 seconds ---
+Total memory population time is--- 0.08072304725646973 seconds ---
+********************************************************************************
+seed is 2
+Argument              Value               
+********************************************************************************
+seed                  2                   
+ds                    apigraph            
+gpu                   0                   
+filename              /tmp/tmp8wv_gk8y    
+b_m                   0.6                 
+lr                    0.01                
+wd                    1e-06               
+label_ratio           0.2                 
+nps                   10000               
+bma                   0.8                 
+alpha                 9.0                 
+lab_samp_in_mem_ratio  0.1                 
+bool_gpm              True                
+mem_strat             equal               
+training_cutoff       4                   
+bool_closs            False               
+mlps                  1                   
+n_epochs              100                 
+beta                  0.1                 
+grid_search           False               
+batch_size            32                  
+********************************************************************************
+(27472, 1160)
+loading model parameter
+(27472, 1160)
+(27472, 1160)
+time stamp is: 08_Feb_08_50_57
+Is lazy training: True
+task order [('0', '1'), ('2', '3'), ('4', '5'), ('6', '7'), ('8', '9'), ('10', '11'), ('12', '13')]
+
+Training on first 4 tasks...
+
+loading task: 0
+validation dataset size (1338, 1159)
+Training task: 0
+Class Imbalance for task 0 (% of minority samples)= 0.10475754803293687
+
+[  0/100] train_loss: 0.14591 PR-AUC (I): 0.97168
+Validation PR-AUC (inliers) increased (inf --> 0.971680).  Saving model ...
+[  1/100] train_loss: 0.04943 PR-AUC (I): 0.96077
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.03115 PR-AUC (I): 0.96056
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01929 PR-AUC (I): 0.95852
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+4372
+458 3914
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 1
+validation dataset size (2126, 1159)
+Training task: 1
+Class Imbalance for task 1 (% of minority samples)= 0.10451408855664175
+
+X shape: (34784, 1159)
+Number of predicted 0s: 31881
+Number of predicted 1s: 2903
+Estimated no. of class 0 samples = 31145
+Estimated no. of class 1 samples = 3639
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([0.9982, 0.9968, 0.9962, 0.9948], device='cuda:0')
+
+classes in memory: [0. 1.]
+
+Number of class 0 agreements (between model and member inference): 6229/6229 - (100.000%)
+Number of class 0 common agreements with ground truth: 6226/6229 - (99.952%)
+Time taken for member inference = 8.205623626708984seconds
+
+Number of class 1 agreements (between model and member inference): 722/727 - (99.312)%
+Number of class 1 common agreements with ground truth: 717/722 - (99.307%)
+Time taken for member inference = 1.0643272399902344seconds
+
+Current task truth agreement fractions = [0.9995183817627228, 0.9930747922437673]
+0 0
+0.8995665435864505 0.8937673130193906
+
+[  0/100] train_loss: 0.36125 PR-AUC (I): 0.93117
+Validation PR-AUC (inliers) increased (inf --> 0.931173).  Saving model ...
+[  1/100] train_loss: 0.14591 PR-AUC (I): 0.93526
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.11399 PR-AUC (I): 0.93817
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.09098 PR-AUC (I): 0.94088
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6956
+727 6229
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 2
+validation dataset size (2557, 1159)
+Training task: 2
+Class Imbalance for task 2 (% of minority samples)= 0.10397517010863078
+
+X shape: (41887, 1159)
+Number of predicted 0s: 38054
+Number of predicted 1s: 3833
+Estimated no. of class 0 samples = 37514
+Estimated no. of class 1 samples = 4373
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3.]
+
+Number of class 0 agreements (between model and member inference): 7490/7502 - (99.840%)
+Number of class 0 common agreements with ground truth: 7483/7490 - (99.907%)
+Time taken for member inference = 9.528027057647705seconds
+
+Number of class 1 agreements (between model and member inference): 854/874 - (97.712)%
+Number of class 1 common agreements with ground truth: 838/854 - (98.126%)
+Time taken for member inference = 0.9186673164367676seconds
+
+Current task truth agreement fractions = [0.9990654205607477, 0.9812646370023419]
+0.8995665435864505 0.8937673130193906
+0.989115532863318 0.9725149046040469
+
+[  0/100] train_loss: 0.25946 PR-AUC (I): 0.95689
+Validation PR-AUC (inliers) increased (inf --> 0.956894).  Saving model ...
+[  1/100] train_loss: 0.17513 PR-AUC (I): 0.96629
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.11365 PR-AUC (I): 0.96629
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.09640 PR-AUC (I): 0.96651
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8377
+871 7506
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 3
+validation dataset size (2499, 1159)
+Training task: 3
+Class Imbalance for task 3 (% of minority samples)= 0.10038891589693728
+
+X shape: (41140, 1159)
+Number of predicted 0s: 37650
+Number of predicted 1s: 3490
+Estimated no. of class 0 samples = 36886
+Estimated no. of class 1 samples = 4254
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5.]
+
+Number of class 0 agreements (between model and member inference): 7310/7377 - (99.092%)
+Number of class 0 common agreements with ground truth: 7301/7310 - (99.877%)
+Time taken for member inference = 7.795907735824585seconds
+
+Number of class 1 agreements (between model and member inference): 845/850 - (99.412)%
+Number of class 1 common agreements with ground truth: 842/845 - (99.645%)
+Time taken for member inference = 0.8872222900390625seconds
+
+Current task truth agreement fractions = [0.9987688098495212, 0.9964497041420118]
+0.989115532863318 0.9725149046040469
+0.997803482150901 0.9940562241882154
+
+[  0/100] train_loss: 0.18132 PR-AUC (I): 0.96016
+Validation PR-AUC (inliers) increased (inf --> 0.960157).  Saving model ...
+[  1/100] train_loss: 0.12287 PR-AUC (I): 0.96113
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.10098 PR-AUC (I): 0.96207
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.08661 PR-AUC (I): 0.96277
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8228
+826 7402
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+Open world setting training from task 4 onwards...
+Agreement fraction: class 0 = 0.4, class 1 = 0.4
+Average CI over training tasks (% of minority samples)= 0.10340893064878666
+
+loading task: 4
+validation dataset size (2435, 1159)
+Training task: 4
+X shape: (40124, 1159)
+Number of predicted 0s: 36089
+Number of predicted 1s: 4035
+Estimated no. of class 0 samples = 35975
+Estimated no. of class 1 samples = 4149
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7.]
+New classes added to memory: 8.0, 9.0
+
+Number of class 0 agreements (between model and member inference): 7165/7195 - (99.583%)
+Number of class 0 common agreements with ground truth: 7165/7165 - (100.000%)
+Time taken for member inference = 7.453049659729004seconds
+No. of self-labelled samples (class 0): 2866
+
+Number of class 1 agreements (between model and member inference): 828/829 - (99.879)%
+Number of class 1 common agreements with ground truth: 828/828 - (100.000%)
+Time taken for member inference = 0.8471930027008057seconds
+No. of self-labelled samples (class 1): 331
+
+Total no. of self-labeled samples = 3197 (0: 2866, 1: 331)
+No. of security analyst-labelled samples: 4827 (0:4329, 1:498)
+Total no. of labelled samples: 8024
+No. of unlabelled samples: (32129, 1159)
+
+[  0/100] train_loss: 0.47502 PR-AUC (I): 0.93911
+Validation PR-AUC (inliers) increased (inf --> 0.939114).  Saving model ...
+[  1/100] train_loss: 0.55565 PR-AUC (I): 0.94038
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.55117 PR-AUC (I): 0.94317
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.53216 PR-AUC (I): 0.93357
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8024
+825 7199
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 5
+validation dataset size (1179, 1159)
+Training task: 5
+X shape: (19551, 1159)
+Number of predicted 0s: 17925
+Number of predicted 1s: 1626
+Estimated no. of class 0 samples = 17530
+Estimated no. of class 1 samples = 2021
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1., 1., 1., 1.], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7. 8. 9.]
+New classes added to memory: 10.0, 11.0
+
+Number of class 0 agreements (between model and member inference): 3484/3506 - (99.373%)
+Number of class 0 common agreements with ground truth: 3459/3484 - (99.282%)
+Time taken for member inference = 3.6104209423065186seconds
+No. of self-labelled samples (class 0): 1393
+
+Number of class 1 agreements (between model and member inference): 394/404 - (97.525)%
+Number of class 1 common agreements with ground truth: 390/394 - (98.985%)
+Time taken for member inference = 0.40654730796813965seconds
+No. of self-labelled samples (class 1): 157
+
+Total no. of self-labeled samples = 1550 (0: 1393, 1: 157)
+No. of security analyst-labelled samples: 2360 (0:2113, 1:247)
+Total no. of labelled samples: 3910
+No. of unlabelled samples: (15653, 1159)
+
+[  0/100] train_loss: 0.75887 PR-AUC (I): 0.90488
+Validation PR-AUC (inliers) increased (inf --> 0.904875).  Saving model ...
+[  1/100] train_loss: 0.67117 PR-AUC (I): 0.89533
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.61768 PR-AUC (I): 0.89741
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.59129 PR-AUC (I): 0.90294
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+3910
+391 3519
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 6
+validation dataset size (1810, 1159)
+Training task: 6
+X shape: (30014, 1159)
+Number of predicted 0s: 27300
+Number of predicted 1s: 2714
+Estimated no. of class 0 samples = 26911
+Estimated no. of class 1 samples = 3103
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+
+classes in memory: [ 0.  1.  2.  3.  4.  5.  6.  7.  8.  9. 10. 11.]
+New classes added to memory: 12.0, 13.0
+
+Number of class 0 agreements (between model and member inference): 5349/5382 - (99.387%)
+Number of class 0 common agreements with ground truth: 5290/5349 - (98.897%)
+Time taken for member inference = 5.703119993209839seconds
+No. of self-labelled samples (class 0): 2139
+
+Number of class 1 agreements (between model and member inference): 608/620 - (98.065)%
+Number of class 1 common agreements with ground truth: 604/608 - (99.342%)
+Time taken for member inference = 0.6148507595062256seconds
+No. of self-labelled samples (class 1): 243
+
+Total no. of self-labeled samples = 2382 (0: 2139, 1: 243)
+No. of security analyst-labelled samples: 3620 (0:3243, 1:377)
+Total no. of labelled samples: 6002
+No. of unlabelled samples: (24038, 1159)
+
+[  0/100] train_loss: 0.78844 PR-AUC (I): 0.89116
+Validation PR-AUC (inliers) increased (inf --> 0.891163).  Saving model ...
+[  1/100] train_loss: 0.66336 PR-AUC (I): 0.89587
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.63218 PR-AUC (I): 0.88622
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.61217 PR-AUC (I): 0.88083
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6002
+594 5408
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+testing on task 0: (7328, 1159)
+testing on task 1: (11658, 1159)
+testing on task 2: (14041, 1159)
+testing on task 3: (13813, 1159)
+AUT(prauc inliers,4) := 0.9989481727227263
+AUT(prauc outliers,4) := 0.8987485281342805
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.999439 | 0.99927  | 0.998889 | 0.997933 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.892356 | 0.896437 | 0.916581 | 0.874099 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 2.148277759552002s
+
+testing on task 4: (13477, 1159)
+testing on task 5: (6582, 1159)
+testing on task 6: (10105, 1159)
+AUT(prauc inliers,3) := 0.9966742380074693
+AUT(prauc outliers,3) := 0.7187129618404067
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.995782 | 0.996822 | 0.99727  |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.641888 | 0.792409 | 0.648146 |
++----------------------+----------+----------+----------+
+dataset loading time: 1.436267375946045s
+
+************** OWL labelling stats ****************
+Total number of self-labelled samples = 7129
+Class 0 count = 6398
+Class 1 count = 731
+Total number of analyst-labelled samples = 10807
+Class 0 count = 9685
+Class 1 count = 1122
+Total execution time is--- 621.7380557060242 seconds ---
+Total memory population time is--- 0.07487344741821289 seconds ---
+********************************************************************************
+seed is 4
+Argument              Value               
+********************************************************************************
+seed                  4                   
+ds                    apigraph            
+gpu                   0                   
+filename              /tmp/tmp6b7w71g6    
+b_m                   0.6                 
+lr                    0.01                
+wd                    1e-06               
+label_ratio           0.2                 
+nps                   10000               
+bma                   0.8                 
+alpha                 9.0                 
+lab_samp_in_mem_ratio  0.1                 
+bool_gpm              True                
+mem_strat             equal               
+training_cutoff       4                   
+bool_closs            False               
+mlps                  1                   
+n_epochs              100                 
+beta                  0.1                 
+grid_search           False               
+batch_size            32                  
+********************************************************************************
+(27472, 1160)
+loading model parameter
+(27472, 1160)
+(27472, 1160)
+time stamp is: 08_Feb_09_01_23
+Is lazy training: True
+task order [('0', '1'), ('2', '3'), ('4', '5'), ('6', '7'), ('8', '9'), ('10', '11'), ('12', '13')]
+
+Training on first 4 tasks...
+
+loading task: 0
+validation dataset size (1338, 1159)
+Training task: 0
+Class Imbalance for task 0 (% of minority samples)= 0.10475754803293687
+
+[  0/100] train_loss: 0.14554 PR-AUC (I): 0.97936
+Validation PR-AUC (inliers) increased (inf --> 0.979357).  Saving model ...
+[  1/100] train_loss: 0.05421 PR-AUC (I): 0.96988
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.04134 PR-AUC (I): 0.95219
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.02523 PR-AUC (I): 0.95274
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+4372
+458 3914
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 1
+validation dataset size (2126, 1159)
+Training task: 1
+Class Imbalance for task 1 (% of minority samples)= 0.10451408855664175
+
+X shape: (34784, 1159)
+Number of predicted 0s: 31330
+Number of predicted 1s: 3454
+Estimated no. of class 0 samples = 31145
+Estimated no. of class 1 samples = 3639
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+
+classes in memory: [0. 1.]
+
+Number of class 0 agreements (between model and member inference): 6229/6229 - (100.000%)
+Number of class 0 common agreements with ground truth: 6228/6229 - (99.984%)
+Time taken for member inference = 6.971860408782959seconds
+
+Number of class 1 agreements (between model and member inference): 723/727 - (99.450)%
+Number of class 1 common agreements with ground truth: 719/723 - (99.447%)
+Time taken for member inference = 0.7879180908203125seconds
+
+Current task truth agreement fractions = [0.9998394605875742, 0.9944674965421854]
+0 0
+0.8998555145288168 0.8950207468879668
+
+[  0/100] train_loss: 0.35685 PR-AUC (I): 0.95998
+Validation PR-AUC (inliers) increased (inf --> 0.959984).  Saving model ...
+[  1/100] train_loss: 0.13741 PR-AUC (I): 0.95490
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.11846 PR-AUC (I): 0.95371
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.09505 PR-AUC (I): 0.95506
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6956
+727 6229
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 2
+validation dataset size (2557, 1159)
+Training task: 2
+Class Imbalance for task 2 (% of minority samples)= 0.10397517010863078
+
+X shape: (41887, 1159)
+Number of predicted 0s: 38062
+Number of predicted 1s: 3825
+Estimated no. of class 0 samples = 37514
+Estimated no. of class 1 samples = 4373
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 0.9999, 0.9999, 0.9999], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3.]
+
+Number of class 0 agreements (between model and member inference): 7424/7502 - (98.960%)
+Number of class 0 common agreements with ground truth: 7169/7424 - (96.565%)
+Time taken for member inference = 8.431531429290771seconds
+
+Number of class 1 agreements (between model and member inference): 832/874 - (95.195)%
+Number of class 1 common agreements with ground truth: 822/832 - (98.798%)
+Time taken for member inference = 0.9220237731933594seconds
+
+Current task truth agreement fractions = [0.9656519396551724, 0.9879807692307693]
+0.8998555145288168 0.8950207468879668
+0.9590722971425368 0.978684766996489
+
+[  0/100] train_loss: 0.16229 PR-AUC (I): 0.95980
+Validation PR-AUC (inliers) increased (inf --> 0.959797).  Saving model ...
+[  1/100] train_loss: 0.11537 PR-AUC (I): 0.96207
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.10006 PR-AUC (I): 0.96226
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.08999 PR-AUC (I): 0.95925
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8377
+871 7506
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 3
+validation dataset size (2499, 1159)
+Training task: 3
+Class Imbalance for task 3 (% of minority samples)= 0.10038891589693728
+
+X shape: (41140, 1159)
+Number of predicted 0s: 37467
+Number of predicted 1s: 3673
+Estimated no. of class 0 samples = 36886
+Estimated no. of class 1 samples = 4254
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([0.9999, 0.9999, 0.9999, 0.9999], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5.]
+
+Number of class 0 agreements (between model and member inference): 7348/7377 - (99.607%)
+Number of class 0 common agreements with ground truth: 7344/7348 - (99.946%)
+Time taken for member inference = 7.8871989250183105seconds
+
+Number of class 1 agreements (between model and member inference): 831/850 - (97.765)%
+Number of class 1 common agreements with ground truth: 827/831 - (99.519%)
+Time taken for member inference = 0.8905019760131836seconds
+
+Current task truth agreement fractions = [0.9994556341861731, 0.9951865222623345]
+0.9590722971425368 0.978684766996489
+0.9954173004818095 0.99353634673575
+
+[  0/100] train_loss: 0.12234 PR-AUC (I): 0.93263
+Validation PR-AUC (inliers) increased (inf --> 0.932630).  Saving model ...
+[  1/100] train_loss: 0.10686 PR-AUC (I): 0.95839
+Validation PR-AUC (inliers) increased (0.932630 --> 0.958390).  Saving model ...
+[  2/100] train_loss: 0.09475 PR-AUC (I): 0.95408
+EarlyStopping counter: 1 out of 3
+[  3/100] train_loss: 0.08580 PR-AUC (I): 0.95573
+EarlyStopping counter: 2 out of 3
+[  4/100] train_loss: 0.08013 PR-AUC (I): 0.95403
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8228
+826 7402
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+Open world setting training from task 4 onwards...
+Agreement fraction: class 0 = 0.4, class 1 = 0.4
+Average CI over training tasks (% of minority samples)= 0.10340893064878666
+
+loading task: 4
+validation dataset size (2435, 1159)
+Training task: 4
+X shape: (40124, 1159)
+Number of predicted 0s: 36043
+Number of predicted 1s: 4081
+Estimated no. of class 0 samples = 35975
+Estimated no. of class 1 samples = 4149
+(few) Highest confidence prediction values (class 0): tensor([1., 1., 1., 1.], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 0.9999, 0.9999, 0.9999], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7.]
+New classes added to memory: 8.0, 9.0
+
+Number of class 0 agreements (between model and member inference): 7135/7195 - (99.166%)
+Number of class 0 common agreements with ground truth: 7132/7135 - (99.958%)
+Time taken for member inference = 7.847959995269775seconds
+No. of self-labelled samples (class 0): 2854
+
+Number of class 1 agreements (between model and member inference): 806/829 - (97.226)%
+Number of class 1 common agreements with ground truth: 797/806 - (98.883%)
+Time taken for member inference = 0.8694913387298584seconds
+No. of self-labelled samples (class 1): 322
+
+Total no. of self-labeled samples = 3176 (0: 2854, 1: 322)
+No. of security analyst-labelled samples: 4848 (0:4341, 1:507)
+Total no. of labelled samples: 8024
+No. of unlabelled samples: (32123, 1159)
+
+[  0/100] train_loss: 0.37284 PR-AUC (I): 0.86876
+Validation PR-AUC (inliers) increased (inf --> 0.868760).  Saving model ...
+[  1/100] train_loss: 0.49122 PR-AUC (I): 0.84261
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.51568 PR-AUC (I): 0.83431
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.52363 PR-AUC (I): 0.82622
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+8024
+812 7212
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 5
+validation dataset size (1179, 1159)
+Training task: 5
+X shape: (19551, 1159)
+Number of predicted 0s: 17788
+Number of predicted 1s: 1763
+Estimated no. of class 0 samples = 17530
+Estimated no. of class 1 samples = 2021
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 0.9999, 0.9998, 0.9998], device='cuda:0')
+
+classes in memory: [0. 1. 2. 3. 4. 5. 6. 7. 8. 9.]
+New classes added to memory: 10.0, 11.0
+
+Number of class 0 agreements (between model and member inference): 3491/3506 - (99.572%)
+Number of class 0 common agreements with ground truth: 3477/3491 - (99.599%)
+Time taken for member inference = 3.739335536956787seconds
+No. of self-labelled samples (class 0): 1396
+
+Number of class 1 agreements (between model and member inference): 392/404 - (97.030)%
+Number of class 1 common agreements with ground truth: 379/392 - (96.684%)
+Time taken for member inference = 0.43547677993774414seconds
+No. of self-labelled samples (class 1): 156
+
+Total no. of self-labeled samples = 1552 (0: 1396, 1: 156)
+No. of security analyst-labelled samples: 2358 (0:2110, 1:248)
+Total no. of labelled samples: 3910
+No. of unlabelled samples: (15656, 1159)
+
+[  0/100] train_loss: 0.78486 PR-AUC (I): 0.82363
+Validation PR-AUC (inliers) increased (inf --> 0.823629).  Saving model ...
+[  1/100] train_loss: 0.68101 PR-AUC (I): 0.82731
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.63887 PR-AUC (I): 0.83248
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.59130 PR-AUC (I): 0.82133
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+3910
+408 3502
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+
+loading task: 6
+validation dataset size (1810, 1159)
+Training task: 6
+X shape: (30014, 1159)
+Number of predicted 0s: 27032
+Number of predicted 1s: 2982
+Estimated no. of class 0 samples = 26911
+Estimated no. of class 1 samples = 3103
+(few) Highest confidence prediction values (class 0): tensor([1.0000, 1.0000, 1.0000, 1.0000], device='cuda:0')
+(few) Highest confidence prediction values (class 1): tensor([1.0000, 1.0000, 1.0000, 0.9999], device='cuda:0')
+
+classes in memory: [ 0.  1.  2.  3.  4.  5.  6.  7.  8.  9. 10. 11.]
+New classes added to memory: 12.0, 13.0
+
+Number of class 0 agreements (between model and member inference): 5363/5382 - (99.647%)
+Number of class 0 common agreements with ground truth: 5322/5363 - (99.236%)
+Time taken for member inference = 5.789673089981079seconds
+No. of self-labelled samples (class 0): 2145
+
+Number of class 1 agreements (between model and member inference): 600/620 - (96.774)%
+Number of class 1 common agreements with ground truth: 569/600 - (94.833%)
+Time taken for member inference = 0.6632895469665527seconds
+No. of self-labelled samples (class 1): 240
+
+Total no. of self-labeled samples = 2385 (0: 2145, 1: 240)
+No. of security analyst-labelled samples: 3617 (0:3237, 1:380)
+Total no. of labelled samples: 6002
+No. of unlabelled samples: (24023, 1159)
+
+[  0/100] train_loss: 0.78211 PR-AUC (I): 0.80924
+Validation PR-AUC (inliers) increased (inf --> 0.809237).  Saving model ...
+[  1/100] train_loss: 0.70841 PR-AUC (I): 0.80211
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.64238 PR-AUC (I): 0.78221
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.63654 PR-AUC (I): 0.79236
+EarlyStopping counter: 3 out of 3
+Early stopping
+number of rand samples 10000
+6002
+608 5394
+keys are ['hidden1', 'hidden2', 'hidden3', 'hidden4', 'hidden5', 'hidden6', 'hidden7']
+testing on task 0: (7328, 1159)
+testing on task 1: (11658, 1159)
+testing on task 2: (14041, 1159)
+testing on task 3: (13813, 1159)
+AUT(prauc inliers,4) := 0.9987814300411398
+AUT(prauc outliers,4) := 0.8477219508076286
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.999503 | 0.99896  | 0.998619 | 0.998028 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.902277 | 0.866689 | 0.881314 | 0.688048 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 2.1147682666778564s
+
+testing on task 4: (13477, 1159)
+testing on task 5: (6582, 1159)
+testing on task 6: (10105, 1159)
+AUT(prauc inliers,3) := 0.9956258691983985
+AUT(prauc outliers,3) := 0.670488759556338
+
+pnt table for SPIDER:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.996718 | 0.993779 | 0.998228 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.688892 | 0.626591 | 0.73988  |
++----------------------+----------+----------+----------+
+dataset loading time: 1.4504663944244385s
+
+************** OWL labelling stats ****************
+Total number of self-labelled samples = 7113
+Class 0 count = 6395
+Class 1 count = 718
+Total number of analyst-labelled samples = 10823
+Class 0 count = 9688
+Class 1 count = 1135
+Total execution time is--- 652.4161372184753 seconds ---
+Total memory population time is--- 0.09793949127197266 seconds ---
+********************************************************************************
+seed is 1
+seed is 2
+seed is 4
+Argument              Value               
+********************************************************************************
+gpu                   0                   
+ds                    apigraph            
+b_m                   0.6                 
+lr                    0.01                
+wd                    1e-06               
+label_ratio           0.2                 
+nps                   10000               
+bma                   0.8                 
+alpha                 9                   
+lab_samp_in_mem_ratio  0.1                 
+bool_gpm              True                
+mem_strat             equal               
+training_cutoff       4                   
+bool_closs            False               
+mlps                  1                   
+batch_size            32                  
+********************************************************************************
+********************************************************************************
+training results for seed value 1
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.948912 | 0.935193 | 0.938628 | 0.957473 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.358265 | 0.303721 | 0.314627 | 0.463082 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9423377696104701
+AUT(prauc outliers,4) := 0.3430071639627658
+testing results for seed value 1
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.906128 | 0.849062 | 0.926957 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.378269 | 0.306867 | 0.476996 |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.8828023328217172
+AUT(prauc outliers,3) := 0.3672497659233473
+training results for seed value 2
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.999439 | 0.99927  | 0.998889 | 0.997933 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.892356 | 0.896437 | 0.916581 | 0.874099 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9989481727227263
+AUT(prauc outliers,4) := 0.8987485281342805
+testing results for seed value 2
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.995782 | 0.996822 | 0.99727  |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.641888 | 0.792409 | 0.648146 |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.9966742380074693
+AUT(prauc outliers,3) := 0.7187129618404067
+training results for seed value 4
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.999503 | 0.99896  | 0.998619 | 0.998028 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.902277 | 0.866689 | 0.881314 | 0.688048 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9987814300411398
+AUT(prauc outliers,4) := 0.8477219508076286
+testing results for seed value 4
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.996718 | 0.993779 | 0.998228 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.688892 | 0.626591 | 0.73988  |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.9956258691983985
+AUT(prauc outliers,3) := 0.670488759556338
+--------------------------------------------------------------------------------
+Cols                  AUT(Benign)           AUT(Attack)           Self_labels (Benign)  Self_labels (Attack)  Analyst_labels (Benign)  Analyst_labels (Attack)
+--------------------------------------------------------------------------------
+Averge                0.958                 0.585                 5828.0                606.3333333333334     10255.0               1246.6666666666667  
+--------------------------------------------------------------------------------
+total execution time is 2026.174 seconds
+avg execution time 675.391 seconds

@@ -1,0 +1,140 @@
+-- >> Start of training phase << --
+-- Starting training on experience 0 (Task 0) from train stream --
+Epoch 0 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3882
+	Loss_MB/train_phase/train_stream/Task000 = 0.3403
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9715
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9806
+Epoch 1 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3403
+	Loss_MB/train_phase/train_stream/Task000 = 0.3279
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9774
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9889
+Epoch 2 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3380
+	Loss_MB/train_phase/train_stream/Task000 = 0.3257
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9774
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9889
+Epoch 3 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3373
+	Loss_MB/train_phase/train_stream/Task000 = 0.3340
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9774
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9806
+Epoch 4 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3369
+	Loss_MB/train_phase/train_stream/Task000 = 0.3499
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9774
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9640
+-- >> End of training phase << --
+-- >> Start of training phase << --
+-- Starting training on experience 0 (Task 0) from train stream --
+Epoch 0 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3351
+	Loss_MB/train_phase/train_stream/Task000 = 0.3226
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9790
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9915
+Epoch 1 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3350
+	Loss_MB/train_phase/train_stream/Task000 = 0.3310
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9790
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9829
+Epoch 2 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3348
+	Loss_MB/train_phase/train_stream/Task000 = 0.3391
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9790
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9744
+Epoch 3 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3348
+	Loss_MB/train_phase/train_stream/Task000 = 0.3311
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9790
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9829
+Epoch 4 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3347
+	Loss_MB/train_phase/train_stream/Task000 = 0.3308
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9790
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9829
+-- >> End of training phase << --
+-- >> Start of training phase << --
+-- Starting training on experience 0 (Task 0) from train stream --
+Epoch 0 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.6584
+	Loss_MB/train_phase/train_stream/Task000 = 0.6248
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.6530
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.6861
+Epoch 1 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5681
+	Loss_MB/train_phase/train_stream/Task000 = 0.4350
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.6955
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9353
+Epoch 2 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3669
+	Loss_MB/train_phase/train_stream/Task000 = 0.3380
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9748
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9871
+Epoch 3 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3372
+	Loss_MB/train_phase/train_stream/Task000 = 0.3431
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9824
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9741
+Epoch 4 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3328
+	Loss_MB/train_phase/train_stream/Task000 = 0.3204
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9839
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9935
+-- >> End of training phase << --
+-- >> Start of training phase << --
+-- Starting training on experience 0 (Task 0) from train stream --
+Epoch 0 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5421
+	Loss_MB/train_phase/train_stream/Task000 = 0.5231
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.7702
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.7909
+Epoch 1 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5210
+	Loss_MB/train_phase/train_stream/Task000 = 0.5058
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.7926
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.8066
+Epoch 2 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5205
+	Loss_MB/train_phase/train_stream/Task000 = 0.4876
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.7930
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.8258
+Epoch 3 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5204
+	Loss_MB/train_phase/train_stream/Task000 = 0.5155
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.7931
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.7979
+Epoch 4 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.5204
+	Loss_MB/train_phase/train_stream/Task000 = 0.5297
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.7931
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.7840
+-- >> End of training phase << --
+-- >> Start of training phase << --
+-- Starting training on experience 0 (Task 0) from train stream --
+Epoch 0 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.6318
+	Loss_MB/train_phase/train_stream/Task000 = 0.5689
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.6809
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.7440
+Epoch 1 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.6107
+	Loss_MB/train_phase/train_stream/Task000 = 0.5920
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.6976
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.6898
+Epoch 2 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3782
+	Loss_MB/train_phase/train_stream/Task000 = 0.3395
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9398
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9819
+Epoch 3 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3351
+	Loss_MB/train_phase/train_stream/Task000 = 0.3285
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9828
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9880
+Epoch 4 ended.
+	Loss_Epoch/train_phase/train_stream/Task000 = 0.3303
+	Loss_MB/train_phase/train_stream/Task000 = 0.3327
+	Top1_Acc_Epoch/train_phase/train_stream/Task000 = 0.9859
+	Top1_Acc_MB/train_phase/train_stream/Task000 = 0.9819
+-- >> End of training phase << --

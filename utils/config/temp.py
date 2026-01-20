@@ -1,0 +1,27 @@
+root.MSL = edict()
+MSL = root.MSL
+
+root.MSL.no_tasks = 10
+root.MSL.mem_size = 13334
+root.MSL.replay_size = 10000
+root.MSL.n_epochs = 5
+root.MSL.minority_allocation = 0.1
+root.MSL.batch_size = 1024
+root.MSL.learning_rate = 0.001
+root.MSL.taskaware_minority_allocation = 0.1
+root.MSL.label = 'MSL'
+root.MSL.enable_checkpoint = False
+root.MSL.taskaware_ecbrs = False
+root.MSL.train_data_lstm = 0.5
+root.MSL.num_mini_tasks = 200
+root.MSL.lstm_epochs = 3
+root.MSL.interim_model_epochs = 1
+root.MSL.lstm_hidden_size = 10
+root.MSL.param_weights_queue_length = 10
+root.MSL.pattern_per_exp = 50
+root.MSL.is_lazy_training = True
+root.MSL.clstrategy = None
+root.MSL.store_weights = False
+root.MSL.train_lstm = True
+root.MSL.image_resolution = None
+root.MSL.store_grads = False

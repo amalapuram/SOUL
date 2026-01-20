@@ -1,0 +1,524 @@
+seed is 3
+Argument              Value               
+********************************************************************************
+seed                  3                   
+ds                    androzoo            
+gpu                   0                   
+filename              /tmp/tmpsyy25vjm    
+lr                    0.01                
+w_d                   1e-06               
+training_cutoff       4                   
+batch_size            32                  
+********************************************************************************
+(40947, 16979)
+loading model parameter
+(40947, 16979)
+(40947, 16979)
+time stamp is: 07_Feb_19_22_39
+ANDROZOO_FC(
+  (hidden1): Linear(in_features=16978, out_features=512, bias=False)
+  (act1): ReLU()
+  (hidden2): Linear(in_features=512, out_features=384, bias=False)
+  (act2): ReLU()
+  (hidden3): Linear(in_features=384, out_features=256, bias=False)
+  (act3): ReLU()
+  (hidden4): Linear(in_features=256, out_features=128, bias=False)
+  (act4): ReLU()
+  (hidden5): Linear(in_features=128, out_features=100, bias=False)
+  (act5): ReLU()
+  (hidden6): Linear(in_features=100, out_features=100, bias=False)
+  (act6): ReLU()
+  (hidden7): Linear(in_features=100, out_features=2, bias=False)
+  (act7): ReLU()
+)
+loading task: 0
+Training task: 0
+initialising the buffer memory
+[  0/100] train_loss: 0.01209 PR-AUC (O): 0.98344
+Validation PR-AUC (inliers) increased (inf --> 0.983438).  Saving model ...
+[  1/100] train_loss: 0.01544 PR-AUC (O): 0.99193
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00661 PR-AUC (O): 0.98551
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.29935 PR-AUC (O): 0.98518
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 1
+Training task: 1
+[  0/100] train_loss: 0.13069 PR-AUC (O): 0.98557
+Validation PR-AUC (inliers) increased (inf --> 0.985565).  Saving model ...
+[  1/100] train_loss: 0.02260 PR-AUC (O): 0.98750
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00761 PR-AUC (O): 0.98498
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01751 PR-AUC (O): 0.98329
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 2
+Training task: 2
+[  0/100] train_loss: 0.00717 PR-AUC (O): 0.98100
+Validation PR-AUC (inliers) increased (inf --> 0.981002).  Saving model ...
+[  1/100] train_loss: 0.00473 PR-AUC (O): 0.96917
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00188 PR-AUC (O): 0.98295
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01580 PR-AUC (O): 0.98666
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 3
+Training task: 3
+[  0/100] train_loss: 0.50489 PR-AUC (O): 0.97564
+Validation PR-AUC (inliers) increased (inf --> 0.975638).  Saving model ...
+[  1/100] train_loss: 0.00058 PR-AUC (O): 0.97654
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00053 PR-AUC (O): 0.98605
+Validation PR-AUC (inliers) increased (0.975638 --> 0.986046).  Saving model ...
+[  3/100] train_loss: 0.00001 PR-AUC (O): 0.98683
+EarlyStopping counter: 1 out of 3
+[  4/100] train_loss: 0.00012 PR-AUC (O): 0.97627
+EarlyStopping counter: 2 out of 3
+[  5/100] train_loss: 0.00134 PR-AUC (O): 0.94018
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 4
+Training task: 4
+[  0/100] train_loss: 0.08595 PR-AUC (O): 0.96566
+Validation PR-AUC (inliers) increased (inf --> 0.965661).  Saving model ...
+[  1/100] train_loss: 0.00042 PR-AUC (O): 0.98180
+Validation PR-AUC (inliers) increased (0.965661 --> 0.981804).  Saving model ...
+[  2/100] train_loss: 0.00958 PR-AUC (O): 0.98190
+EarlyStopping counter: 1 out of 3
+[  3/100] train_loss: 0.16773 PR-AUC (O): 0.97499
+EarlyStopping counter: 2 out of 3
+[  4/100] train_loss: 0.00001 PR-AUC (O): 0.98009
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 5
+Training task: 5
+[  0/100] train_loss: 0.02317 PR-AUC (O): 0.97132
+Validation PR-AUC (inliers) increased (inf --> 0.971322).  Saving model ...
+[  1/100] train_loss: 0.04012 PR-AUC (O): 0.98224
+Validation PR-AUC (inliers) increased (0.971322 --> 0.982239).  Saving model ...
+[  2/100] train_loss: 0.04839 PR-AUC (O): 0.97135
+EarlyStopping counter: 1 out of 3
+[  3/100] train_loss: 0.15875 PR-AUC (O): 0.97067
+EarlyStopping counter: 2 out of 3
+[  4/100] train_loss: 0.00335 PR-AUC (O): 0.94284
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 6
+Training task: 6
+[  0/100] train_loss: 0.40732 PR-AUC (O): 0.97363
+Validation PR-AUC (inliers) increased (inf --> 0.973630).  Saving model ...
+[  1/100] train_loss: 0.04106 PR-AUC (O): 0.98272
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00146 PR-AUC (O): 0.97126
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00001 PR-AUC (O): 0.97131
+EarlyStopping counter: 3 out of 3
+Early stopping
+testing on task 0: (10919, 16978)
+testing on task 1: (3455, 16978)
+testing on task 2: (3667, 16978)
+testing on task 3: (2208, 16978)
+AUT(prauc inliers,4) := 0.9984343084678446
+AUT(prauc outliers,4) := 0.9155716173705023
+
+pnt table:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.997187 | 0.997287 | 0.999465 | 0.999916 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.837325 | 0.841534 | 0.98913  | 0.994776 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 11.824697971343994s
+
+testing on task 4: (1548, 16978)
+testing on task 5: (1240, 16978)
+testing on task 6: (963, 16978)
+AUT(prauc inliers,3) := 0.9995428870692454
+AUT(prauc outliers,3) := 0.9564171004427092
+
+pnt table:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.99922  | 0.999827 | 0.999297 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.958253 | 0.979801 | 0.907814 |
++----------------------+----------+----------+----------+
+dataset loading time: 2.1408002376556396s
+
+Total execution time is--- 367.64465951919556 seconds ---
+Total memory population time is--- 2.6756467819213867 seconds ---
+seed is 3
+seed is 4
+Argument              Value               
+********************************************************************************
+seed                  4                   
+ds                    androzoo            
+gpu                   0                   
+filename              /tmp/tmpr60l0xsb    
+lr                    0.01                
+w_d                   1e-06               
+training_cutoff       4                   
+batch_size            32                  
+********************************************************************************
+(40947, 16979)
+loading model parameter
+(40947, 16979)
+(40947, 16979)
+time stamp is: 07_Feb_19_28_47
+ANDROZOO_FC(
+  (hidden1): Linear(in_features=16978, out_features=512, bias=False)
+  (act1): ReLU()
+  (hidden2): Linear(in_features=512, out_features=384, bias=False)
+  (act2): ReLU()
+  (hidden3): Linear(in_features=384, out_features=256, bias=False)
+  (act3): ReLU()
+  (hidden4): Linear(in_features=256, out_features=128, bias=False)
+  (act4): ReLU()
+  (hidden5): Linear(in_features=128, out_features=100, bias=False)
+  (act5): ReLU()
+  (hidden6): Linear(in_features=100, out_features=100, bias=False)
+  (act6): ReLU()
+  (hidden7): Linear(in_features=100, out_features=2, bias=False)
+  (act7): ReLU()
+)
+loading task: 0
+Training task: 0
+initialising the buffer memory
+[  0/100] train_loss: 0.18730 PR-AUC (O): 0.98731
+Validation PR-AUC (inliers) increased (inf --> 0.987310).  Saving model ...
+[  1/100] train_loss: 0.00264 PR-AUC (O): 0.99158
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.39953 PR-AUC (O): 0.98090
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.32362 PR-AUC (O): 0.98695
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 1
+Training task: 1
+[  0/100] train_loss: 0.17119 PR-AUC (O): 0.98842
+Validation PR-AUC (inliers) increased (inf --> 0.988424).  Saving model ...
+[  1/100] train_loss: 0.63776 PR-AUC (O): 0.91363
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 22.58064 PR-AUC (O): 0.61442
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 29.16667 PR-AUC (O): 0.61442
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 2
+Training task: 2
+[  0/100] train_loss: 0.02074 PR-AUC (O): 0.98702
+Validation PR-AUC (inliers) increased (inf --> 0.987021).  Saving model ...
+[  1/100] train_loss: 0.05908 PR-AUC (O): 0.98597
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00799 PR-AUC (O): 0.98705
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00481 PR-AUC (O): 0.98276
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 3
+Training task: 3
+[  0/100] train_loss: 0.00002 PR-AUC (O): 0.98981
+Validation PR-AUC (inliers) increased (inf --> 0.989806).  Saving model ...
+[  1/100] train_loss: 0.09806 PR-AUC (O): 0.98897
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00081 PR-AUC (O): 0.98697
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01124 PR-AUC (O): 0.97731
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 4
+Training task: 4
+[  0/100] train_loss: 0.02245 PR-AUC (O): 0.96832
+Validation PR-AUC (inliers) increased (inf --> 0.968321).  Saving model ...
+[  1/100] train_loss: 0.09158 PR-AUC (O): 0.97042
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.01743 PR-AUC (O): 0.96461
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00636 PR-AUC (O): 0.96895
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 5
+Training task: 5
+[  0/100] train_loss: 0.09700 PR-AUC (O): 0.97514
+Validation PR-AUC (inliers) increased (inf --> 0.975140).  Saving model ...
+[  1/100] train_loss: 0.00780 PR-AUC (O): 0.96072
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00440 PR-AUC (O): 0.98733
+Validation PR-AUC (inliers) increased (0.975140 --> 0.987326).  Saving model ...
+[  3/100] train_loss: 0.22995 PR-AUC (O): 0.94791
+EarlyStopping counter: 1 out of 3
+[  4/100] train_loss: 0.06438 PR-AUC (O): 0.97014
+EarlyStopping counter: 2 out of 3
+[  5/100] train_loss: 0.02971 PR-AUC (O): 0.96142
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 6
+Training task: 6
+[  0/100] train_loss: 0.01346 PR-AUC (O): 0.97101
+Validation PR-AUC (inliers) increased (inf --> 0.971011).  Saving model ...
+[  1/100] train_loss: 0.08528 PR-AUC (O): 0.97717
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00369 PR-AUC (O): 0.96278
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00376 PR-AUC (O): 0.97062
+EarlyStopping counter: 3 out of 3
+Early stopping
+testing on task 0: (10919, 16978)
+testing on task 1: (3455, 16978)
+testing on task 2: (3667, 16978)
+testing on task 3: (2208, 16978)
+AUT(prauc inliers,4) := 0.9979236591722671
+AUT(prauc outliers,4) := 0.9205994734018059
+
+pnt table:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.996624 | 0.996461 | 0.999153 | 0.999692 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.839415 | 0.857798 | 0.987498 | 0.993589 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 11.839612245559692s
+
+testing on task 4: (1548, 16978)
+testing on task 5: (1240, 16978)
+testing on task 6: (963, 16978)
+AUT(prauc inliers,3) := 0.9982630079338327
+AUT(prauc outliers,3) := 0.8963323929171515
+
+pnt table:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.999143 | 0.99897  | 0.995968 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.944278 | 0.932373 | 0.776305 |
++----------------------+----------+----------+----------+
+dataset loading time: 2.151902437210083s
+
+Total execution time is--- 316.8637092113495 seconds ---
+Total memory population time is--- 2.343043088912964 seconds ---
+seed is 4
+seed is 5
+Argument              Value               
+********************************************************************************
+seed                  5                   
+ds                    androzoo            
+gpu                   0                   
+filename              /tmp/tmpcgxm2iae    
+lr                    0.01                
+w_d                   1e-06               
+training_cutoff       4                   
+batch_size            32                  
+********************************************************************************
+(40947, 16979)
+loading model parameter
+(40947, 16979)
+(40947, 16979)
+time stamp is: 07_Feb_19_34_08
+ANDROZOO_FC(
+  (hidden1): Linear(in_features=16978, out_features=512, bias=False)
+  (act1): ReLU()
+  (hidden2): Linear(in_features=512, out_features=384, bias=False)
+  (act2): ReLU()
+  (hidden3): Linear(in_features=384, out_features=256, bias=False)
+  (act3): ReLU()
+  (hidden4): Linear(in_features=256, out_features=128, bias=False)
+  (act4): ReLU()
+  (hidden5): Linear(in_features=128, out_features=100, bias=False)
+  (act5): ReLU()
+  (hidden6): Linear(in_features=100, out_features=100, bias=False)
+  (act6): ReLU()
+  (hidden7): Linear(in_features=100, out_features=2, bias=False)
+  (act7): ReLU()
+)
+loading task: 0
+Training task: 0
+initialising the buffer memory
+[  0/100] train_loss: 0.43142 PR-AUC (O): 0.98767
+Validation PR-AUC (inliers) increased (inf --> 0.987674).  Saving model ...
+[  1/100] train_loss: 0.03116 PR-AUC (O): 0.97862
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.53988 PR-AUC (O): 0.98350
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.04097 PR-AUC (O): 0.98646
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 1
+Training task: 1
+[  0/100] train_loss: 0.00869 PR-AUC (O): 0.98291
+Validation PR-AUC (inliers) increased (inf --> 0.982905).  Saving model ...
+[  1/100] train_loss: 0.00119 PR-AUC (O): 0.98443
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00371 PR-AUC (O): 0.98356
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00007 PR-AUC (O): 0.98209
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 2
+Training task: 2
+[  0/100] train_loss: 0.14864 PR-AUC (O): 0.98489
+Validation PR-AUC (inliers) increased (inf --> 0.984893).  Saving model ...
+[  1/100] train_loss: 0.00012 PR-AUC (O): 0.98639
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00052 PR-AUC (O): 0.98692
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.00127 PR-AUC (O): 0.98427
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 3
+Training task: 3
+[  0/100] train_loss: 0.02487 PR-AUC (O): 0.98129
+Validation PR-AUC (inliers) increased (inf --> 0.981293).  Saving model ...
+[  1/100] train_loss: 0.00075 PR-AUC (O): 0.96765
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00086 PR-AUC (O): 0.97497
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.03747 PR-AUC (O): 0.98467
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 4
+Training task: 4
+[  0/100] train_loss: 0.01439 PR-AUC (O): 0.98062
+Validation PR-AUC (inliers) increased (inf --> 0.980622).  Saving model ...
+[  1/100] train_loss: 0.00091 PR-AUC (O): 0.97211
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00013 PR-AUC (O): 0.95121
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.16151 PR-AUC (O): 0.95518
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 5
+Training task: 5
+[  0/100] train_loss: 0.00879 PR-AUC (O): 0.97741
+Validation PR-AUC (inliers) increased (inf --> 0.977414).  Saving model ...
+[  1/100] train_loss: 0.00728 PR-AUC (O): 0.97854
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.02855 PR-AUC (O): 0.97279
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.02375 PR-AUC (O): 0.97590
+EarlyStopping counter: 3 out of 3
+Early stopping
+loading task: 6
+Training task: 6
+[  0/100] train_loss: 0.30155 PR-AUC (O): 0.97417
+Validation PR-AUC (inliers) increased (inf --> 0.974172).  Saving model ...
+[  1/100] train_loss: 0.10467 PR-AUC (O): 0.97080
+EarlyStopping counter: 1 out of 3
+[  2/100] train_loss: 0.00561 PR-AUC (O): 0.97301
+EarlyStopping counter: 2 out of 3
+[  3/100] train_loss: 0.01543 PR-AUC (O): 0.97920
+EarlyStopping counter: 3 out of 3
+Early stopping
+testing on task 0: (10919, 16978)
+testing on task 1: (3455, 16978)
+testing on task 2: (3667, 16978)
+testing on task 3: (2208, 16978)
+AUT(prauc inliers,4) := 0.9986909955508144
+AUT(prauc outliers,4) := 0.9258427392150841
+
+pnt table:
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.996173 | 0.998746 | 0.999404 | 0.999674 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.814398 | 0.886812 | 0.987096 | 0.992843 |
++----------------------+----------+----------+----------+----------+
+dataset loading time: 11.809685468673706s
+
+testing on task 4: (1548, 16978)
+testing on task 5: (1240, 16978)
+testing on task 6: (963, 16978)
+AUT(prauc inliers,3) := 0.9981723896776733
+AUT(prauc outliers,3) := 0.9125802145704313
+
+pnt table:
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.999113 | 0.99881  | 0.995956 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.950149 | 0.940572 | 0.819028 |
++----------------------+----------+----------+----------+
+dataset loading time: 2.1574177742004395s
+
+Total execution time is--- 314.15219807624817 seconds ---
+Total memory population time is--- 2.180215358734131 seconds ---
+seed is 5
+seed is 3
+seed is 4
+seed is 5
+training results for seed value 3
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.997187 | 0.997287 | 0.999465 | 0.999916 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.837325 | 0.841534 | 0.98913  | 0.994776 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9984343084678446
+AUT(prauc outliers,4) := 0.9155716173705023
+testing results for seed value 3
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.99922  | 0.999827 | 0.999297 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.958253 | 0.979801 | 0.907814 |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.9995428870692454
+AUT(prauc outliers,3) := 0.9564171004427092
+training results for seed value 4
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.996624 | 0.996461 | 0.999153 | 0.999692 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.839415 | 0.857798 | 0.987498 | 0.993589 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9979236591722671
+AUT(prauc outliers,4) := 0.9205994734018059
+testing results for seed value 4
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.999143 | 0.99897  | 0.995968 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.944278 | 0.932373 | 0.776305 |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.9982630079338327
+AUT(prauc outliers,3) := 0.8963323929171515
+training results for seed value 5
++----------------------+----------+----------+----------+----------+
+|                      |        0 |        1 |        2 |        3 |
++======================+==========+==========+==========+==========+
+| prauc Benign traffic | 0.996173 | 0.998746 | 0.999404 | 0.999674 |
++----------------------+----------+----------+----------+----------+
+| prauc Attack traffic | 0.814398 | 0.886812 | 0.987096 | 0.992843 |
++----------------------+----------+----------+----------+----------+
+AUT(prauc inliers,4) := 0.9986909955508144
+AUT(prauc outliers,4) := 0.9258427392150841
+testing results for seed value 5
++----------------------+----------+----------+----------+
+|                      |        4 |        5 |        6 |
++======================+==========+==========+==========+
+| prauc Benign traffic | 0.999113 | 0.99881  | 0.995956 |
++----------------------+----------+----------+----------+
+| prauc Attack traffic | 0.950149 | 0.940572 | 0.819028 |
++----------------------+----------+----------+----------+
+AUT(prauc inliers,3) := 0.9981723896776733
+AUT(prauc outliers,3) := 0.9125802145704313
+--------------------------------------------------------------------------------
+Cols                  AUT(Benign)           AUT(Attack)           
+--------------------------------------------------------------------------------
+Average               0.998                 0.9217765693100973   
+--------------------------------------------------------------------------------
+
+total execution time is 1008.158 seconds
+avg execution time 336.053 seconds
