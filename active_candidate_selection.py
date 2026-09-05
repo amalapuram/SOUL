@@ -36,6 +36,14 @@ SOTA grounding (see conversation record for full rationale):
   - diverse_topk_selection / build_analyst_queue: BADGE (Ash et al., ICLR
     2020) -- score-ranked shortlist, then k-means++ seeding for a diverse
     (not redundant) final batch.
+  - estimate_class_prior_bbse: Black Box Shift Estimation (Lipton et al.,
+    ICML 2018) -- replaces the pipeline's frozen `avg_CI` (the seen-tasks'
+    average class ratio, carried forward unchanged into every unseen task)
+    with a per-unseen-task estimate of the true class prior, using only the
+    model's own confusion matrix (from the last seen/labeled task) and its
+    predicted-label distribution on the new unlabeled data -- no ground
+    truth on the unseen task itself, consistent with the open-world
+    constraint, but adaptive instead of assuming stationarity.
 """
 
 import numpy as np
@@ -226,6 +234,66 @@ def build_analyst_queue(candidate_X, novelty_scores, disagreement_scores, budget
 
 
 # ---------------------------------------------------------------------------
+# 6. Black Box Shift Estimation (Lipton et al., ICML 2018) -- adaptive
+#    per-unseen-task class prior, replacing the pipeline's frozen avg_CI.
+# ---------------------------------------------------------------------------
+def compute_confusion_matrix_binary(y_true, y_pred):
+    """
+    2x2 confusion matrix C where C[i, j] = P(model predicts j | true label
+    is i), estimated from a task where ground truth is actually available
+    (a seen/supervised task in this pipeline -- the full task's y, not just
+    a small labeled subset, since seen tasks are fully labeled here). Rows
+    sum to 1 (each is a conditional distribution over predictions given the
+    true class). This is the "black box" ingredient BBSE needs: it treats
+    the model purely as a predictor to characterize, no internals required.
+    """
+    y_true = np.asarray(y_true).astype(int)
+    y_pred = np.asarray(y_pred).astype(int)
+    C = np.zeros((2, 2), dtype=np.float64)
+    for true_cls in (0, 1):
+        mask = y_true == true_cls
+        n = mask.sum()
+        if n == 0:
+            C[true_cls] = [0.5, 0.5]  # no data for this class this task -- uninformative prior, not a guess dressed as data
+            continue
+        preds = y_pred[mask]
+        C[true_cls, 0] = np.mean(preds == 0)
+        C[true_cls, 1] = np.mean(preds == 1)
+    return C
+
+
+def estimate_class_prior_bbse(confusion_matrix, y_pred_unseen, min_det=1e-3):
+    """
+    BBSE (Lipton et al., ICML 2018): given a confusion matrix C estimated on
+    labeled data (rows = true class, cols = predicted class) and the model's
+    predicted-label distribution mu_hat on a NEW, unlabeled batch, solves
+    mu_hat = C^T @ pi for the true class prior pi on that new batch --
+    ground-truth-free at the new-batch end, which is exactly the open-world
+    constraint this pipeline operates under. Binary closed form:
+
+        mu_hat[1] = C[0,1]*pi[0] + C[1,1]*pi[1],  pi[0] = 1 - pi[1]
+        => pi[1] = (mu_hat[1] - C[0,1]) / (C[1,1] - C[0,1])
+
+    Falls back to the plug-in estimate (mu_hat itself, i.e. "trust the
+    classifier's raw predicted proportions") when the confusion matrix is
+    near-singular (C[1,1] ~= C[0,1] -- the classifier's positive-prediction
+    rate barely depends on the true label, so the linear system is not
+    reliably invertible with this little information) -- degrading
+    gracefully rather than dividing by ~0 and returning nonsense. Result is
+    always clipped to a valid probability in [0, 1].
+    """
+    y_pred_unseen = np.asarray(y_pred_unseen).astype(int)
+    mu_hat_1 = np.mean(y_pred_unseen == 1) if y_pred_unseen.size > 0 else 0.0
+
+    denom = confusion_matrix[1, 1] - confusion_matrix[0, 1]
+    if abs(denom) < min_det:
+        pi_1 = mu_hat_1  # plug-in fallback -- see docstring
+    else:
+        pi_1 = (mu_hat_1 - confusion_matrix[0, 1]) / denom
+    return float(np.clip(pi_1, 0.0, 1.0))
+
+
+# ---------------------------------------------------------------------------
 # Self-test: synthetic correctness check, run directly with
 # `python active_candidate_selection.py`. Exercises every function above
 # except compute_novelty_score_clustering (needs a live faiss km object from
@@ -297,5 +365,47 @@ if __name__ == "__main__":
     print(f"requested budget={k}, got {len(idx)} unique indices: {len(set(idx.tolist())) == len(idx)}")
     assert len(idx) == k
     assert len(set(idx.tolist())) == k
+
+    print("\n=== estimate_class_prior_bbse ===")
+    # simulate an imperfect classifier: 90% accurate on class 0, 80% on class 1
+    n_seen = 20000
+    y_true_seen = (np.random.rand(n_seen) < 0.3).astype(int)  # seen-task true prior: 30% class 1
+    y_pred_seen = y_true_seen.copy()
+    flip0 = (y_true_seen == 0) & (np.random.rand(n_seen) < 0.10)
+    flip1 = (y_true_seen == 1) & (np.random.rand(n_seen) < 0.20)
+    y_pred_seen[flip0] = 1
+    y_pred_seen[flip1] = 0
+    C = compute_confusion_matrix_binary(y_true_seen, y_pred_seen)
+    print(f"confusion matrix (rows=true, cols=pred):\n{C}")
+    assert abs(C[0, 0] - 0.90) < 0.02 and abs(C[1, 1] - 0.80) < 0.02
+
+    # now simulate an UNSEEN task where the true prior has SHIFTED to 70%
+    # class 1 (very different from the seen tasks' 30%) -- same classifier,
+    # same confusion behavior, applied to the new class balance
+    n_unseen = 20000
+    true_prior_1_unseen = 0.70
+    y_true_unseen = (np.random.rand(n_unseen) < true_prior_1_unseen).astype(int)
+    y_pred_unseen = y_true_unseen.copy()
+    flip0u = (y_true_unseen == 0) & (np.random.rand(n_unseen) < 0.10)
+    flip1u = (y_true_unseen == 1) & (np.random.rand(n_unseen) < 0.20)
+    y_pred_unseen[flip0u] = 1
+    y_pred_unseen[flip1u] = 0
+
+    naive_estimate = np.mean(y_true_seen)  # the OLD avg_CI-style approach: frozen seen-task average
+    plugin_estimate = np.mean(y_pred_unseen)  # trusting raw predictions, uncorrected for classifier bias
+    bbse_estimate = estimate_class_prior_bbse(C, y_pred_unseen)
+    print(f"true unseen prior:  {true_prior_1_unseen:.4f}")
+    print(f"frozen avg_CI (old approach): {naive_estimate:.4f}  (error={abs(naive_estimate-true_prior_1_unseen):.4f})")
+    print(f"naive plug-in (uncorrected):  {plugin_estimate:.4f}  (error={abs(plugin_estimate-true_prior_1_unseen):.4f})")
+    print(f"BBSE estimate:                {bbse_estimate:.4f}  (error={abs(bbse_estimate-true_prior_1_unseen):.4f})")
+    assert abs(bbse_estimate - true_prior_1_unseen) < 0.03, "BBSE should recover the shifted prior closely"
+    assert abs(bbse_estimate - true_prior_1_unseen) < abs(naive_estimate - true_prior_1_unseen), \
+        "BBSE must beat blindly freezing the seen-task average under a real shift"
+
+    # degenerate confusion matrix (near-singular) -> should fall back to plug-in, not blow up
+    C_degenerate = np.array([[0.5, 0.5], [0.5, 0.5]])
+    fallback = estimate_class_prior_bbse(C_degenerate, y_pred_unseen)
+    print(f"degenerate-C fallback: {fallback:.4f} (expect == plug-in {plugin_estimate:.4f})")
+    assert abs(fallback - plugin_estimate) < 1e-9
 
     print("\nALL CHECKS PASSED")
