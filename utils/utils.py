@@ -591,7 +591,12 @@ def load_squeezenetmodel_clear10(state_dict_path):
 def load_model(label,inputsize,softmax=False):
     model = None
     if label == 'cicids2017':
-        model = CICIDS2017_FC(inputsize=inputsize, softmax=softmax)
+         
+         model = CICIDS2017_FC(inputsize=inputsize, softmax=softmax)
+        #model = CICIDS2018_FC(inputsize=inputsize, softmax=softmax)
+
+        
+        # model = CICIDS2017_RF_MLP(inputsize=inputsize,num_experts=1,keep_prob=0.9,softmax=softmax)
         
     elif label ==  'cicids2018':
         model = CICIDS2018_FC(inputsize=inputsize, softmax=softmax)

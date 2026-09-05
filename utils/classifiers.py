@@ -12,6 +12,77 @@ import math
 from utils.config.configurations import cfg
 
 
+class FeatureMask(nn.Module):
+    def __init__(self, input_dim, keep_prob=0.5):
+        super().__init__()
+        self.input_dim = input_dim
+        self.keep_prob = keep_prob
+
+    def forward(self, x):
+        if self.training:
+            mask = torch.bernoulli(
+                torch.full((self.input_dim,), self.keep_prob, device=x.device)
+            )
+            return x * mask
+        return x
+
+
+class CICIDS2017_RF_MLP(nn.Module):
+    def __init__(
+        self,
+        inputsize,
+        num_experts=5,
+        keep_prob=0.4,
+        softmax=False
+    ):
+        super().__init__()
+        self.softmax = softmax
+
+        self.masks = nn.ModuleList([
+            FeatureMask(inputsize, keep_prob)
+            for _ in range(num_experts)
+        ])
+
+        self.experts = nn.ModuleList([
+            CICIDS2017_FC(inputsize)
+            for _ in range(num_experts)
+        ])
+
+        # averaged activations (public API, like original net.act)
+        self.act = {}
+
+    def forward(self, X):
+        X = X.float()
+
+        logits = []
+        act_buffer = {}
+
+        for mask, expert in zip(self.masks, self.experts):
+            x_masked = mask(X)
+            logits.append(expert(x_masked))
+
+            # collect (DETACHED) activations
+            for k, v in expert.act.items():
+                if k not in act_buffer:
+                    act_buffer[k] = []
+                act_buffer[k].append(v.detach())
+
+        # average activations across experts (NO inplace ops)
+        self.act = {
+            k: torch.stack(v, dim=0).mean(dim=0)
+            for k, v in act_buffer.items()
+        }
+
+        logits = torch.stack(logits, dim=0).mean(dim=0)
+
+        if self.softmax:
+            logits = torch.softmax(logits, dim=1)
+
+        return logits
+
+
+
+
 def Xavier(m):
     if m.__class__.__name__ == 'Linear':
         fan_in, fan_out = m.weight.data.size(1), m.weight.data.size(0)

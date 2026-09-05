@@ -39,7 +39,7 @@ import random
 from math import floor
 from collections import Counter
 from sklearn.metrics import roc_auc_score,precision_recall_curve,auc
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score,confusion_matrix
 from tqdm import tqdm
 import itertools
 import argparse
@@ -985,6 +985,7 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
     #     compute_otdd(task_id, X, memory_X, memory_y_name, attack_y_name, benign_y_name)
 
     task_size = X.shape[0]
+    # if True or owl_data_labeling == False: #for SPIDER
     if owl_data_labeling == False:
 
         if task_id == 0:
@@ -1586,6 +1587,8 @@ def testing(training_cutoff, seen_data=False):
     prauc_out_pnt = []
     en_prauc_in_pnt = []
     en_prauc_out_pnt = []
+    fpr_pnt = []   # FPR per task (FP / (FP + TN))
+    fnr_pnt = []   # FNR per task (FN / (FN + TP))
 
     if seen_data:
         testing_tasks = task_order[:training_cutoff]
@@ -1689,18 +1692,26 @@ def testing(training_cutoff, seen_data=False):
         prauc_out_pnt.append(auc_precision_recall_1)
         en_prauc_in_pnt.append(en_auc_precision_recall_0)
         en_prauc_out_pnt.append(en_auc_precision_recall_1)
-        
-        # print(f'prauc inliers: {auc_precision_recall_in}')        
-        # print(f'prauc outliers: {auc_precision_recall_out}')                     
+
+        # Compute FPR and FNR at threshold 0.5
+        val_pred_binary = [1 if p >= 0.5 else 0 for p in val_pred]
+        tn, fp, fn, tp = confusion_matrix(val_actual, val_pred_binary, labels=[0, 1]).ravel()
+        fpr_pnt.append(fp / (fp + tn) if (fp + tn) > 0 else 0.0)
+        fnr_pnt.append(fn / (fn + tp) if (fn + tp) > 0 else 0.0)
+
+        # print(f'prauc inliers: {auc_precision_recall_in}')
+        # print(f'prauc outliers: {auc_precision_recall_out}')
         # print('')
-    
+
     N = len(testing_tasks) #number of test tasks
     prauc_in_aut  = 0
     prauc_out_aut = 0
 
     if N<2:
         print('not printing AUT values since it requires atleast 2 test tasks')
-        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+        # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+        #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
     
     
     for i in range(N-1):
@@ -1734,7 +1745,9 @@ def testing(training_cutoff, seen_data=False):
     # print('Here json dump of the data for easy unparsing')
     # print(f'#pnt_table#{json.dumps(pnt_table)}#end_pnt_table#')
     # print(f'#train_order#{json.dumps(train_order)}#end_train_order#')
-    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+    # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+    #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
   
 
 def evaluate_on_sub_testset(test_x,test_y):

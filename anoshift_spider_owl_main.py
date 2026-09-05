@@ -19,12 +19,14 @@ if __name__ == "__main__":
     parser.add_argument('--b_m', type=float, default=0.2, metavar='S',help='batch memory ratio(default: 0.2)')
     # parser.add_argument('--lr', type=float, default=1e-4, metavar='S',help='batch memory ratio(default: 0.001)')
     # parser.add_argument('--wd', type=float, default=1e-5, metavar='S',help='batch memory ratio(default: 0.01)')
+    # parser.add_argument('--lr', type=float, default=1e-4, metavar='S',help='batch memory ratio(default: 0.001)')
+    # parser.add_argument('--wd', type=float, default=1e-5, metavar='S',help='batch memory ratio(default: 0.01)')
     parser.add_argument('--lr', type=float, default=1e-4, metavar='S',help='batch memory ratio(default: 0.001)')
     parser.add_argument('--wd', type=float, default=1e-5, metavar='S',help='batch memory ratio(default: 0.01)')
-    parser.add_argument('--label_ratio', type=float, default=0.1, metavar='S',help='labeled ratio (default: 0.1)')
+    parser.add_argument('--label_ratio', type=float, default=0.2, metavar='S',help='labeled ratio (default: 0.1)')
     parser.add_argument('--nps', type=int, metavar='S',default=10000,help='number of projection samples(default: 100)')
-    parser.add_argument('--bma', type=float, metavar='S',default=0.3,help='batch minority allocation(default: 0)')
-    parser.add_argument('--alpha', type=float, metavar='S',default=9,help='distill loss multiplier(default: 0)')
+    parser.add_argument('--bma', type=float, metavar='S',default=0.2,help='batch minority allocation(default: 0)')
+    parser.add_argument('--alpha', type=float, metavar='S',default=1,help='distill loss multiplier(default: 0)')
     parser.add_argument('--lab_samp_in_mem_ratio', type=float, metavar='S',default=1.0,help='Percentage of labeled samples to store in memory(default: 1.0)')
     parser.add_argument('--bool_gpm', type=str, metavar='S',default="True",help='Enables gradient projections(default: True)')
     parser.add_argument('--mem_strat', type=str, metavar='S',default="equal",help='Buffer memory strategy(default: full initialization)')
@@ -39,6 +41,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     auc_results = {}
     seed_list = [1,2,3]
+    # seed_list = [2]
     curr_dir = os.getcwd()
     for seed_value in seed_list:
         print("seed is",seed_value)
@@ -61,71 +64,108 @@ if __name__ == "__main__":
     print("*"*80)    
     # print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20} {:<10}".format('seed','PR-AUC(O)', 'PR-AUC(I)', 'ROC-AUC','grad_norm_mean','grad_norm_variance'))
     print("*"*80)
-    aut_results = {}
+    # ── Collect OWL labeling counts from each seed run ──────────────────────────
+    # value[2..5] = str counts: self_label_benign, self_label_attack,
+    #                            analyst_label_benign, analyst_label_attack
+    label_stats = {}
     for key, value in auc_results.items():
-        # print("training results for seed value",key)
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[0][0],value[0][1],value[0][2],value[0][3],value[0][4],value[0][5],value[0][6]
-    #     pnt_table = [
-    #     # ['task_CI']+ task_CI_pnt, 
-    #     # ['test_CI'] + test_CI_pnt,
-    #     ['prauc Benign traffic'] + prauc_in_pnt, 
-    #     ['prauc Attack traffic'] + prauc_out_pnt
-    # ]
-    #     print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
-    #     print(f'AUT(prauc inliers,{N}) := {prauc_in_aut}')
-    #     print(f'AUT(prauc outliers,{N}) := {prauc_out_aut}')
-        aut_results[key] = [prauc_in_aut,prauc_out_aut]
-        # print("testing results for seed value",key)
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[1][0],value[1][1],value[1][2],value[1][3],value[1][4],value[1][5],value[1][6]
-        # pnt_table = [ # ['task_CI']+ task_CI_pnt, 
-        #         # ['test_CI'] + test_CI_pnt,
-        #         ['prauc Benign traffic'] + prauc_in_pnt, 
-        #         ['prauc Attack traffic'] + prauc_out_pnt
-        #         ]
-        # print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
-        # print(f'AUT(prauc inliers,{N}) := {prauc_in_aut}')
-        # print(f'AUT(prauc outliers,{N}) := {prauc_out_aut}')
-        aut_results[key].extend([prauc_in_aut,prauc_out_aut,float(value[2]),float(value[3]),float(value[4]),float(value[5])])
-        # print("Results over all tasks for seed value",key)
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[6][0],value[6][1],value[6][2],value[6][3],value[6][4],value[6][5],value[6][6]
-        # pnt_table = [ # ['task_CI']+ task_CI_pnt, 
-        #         # ['test_CI'] + test_CI_pnt,
-        #         ['prauc Benign traffic'] + prauc_in_pnt, 
-        #         ['prauc Attack traffic'] + prauc_out_pnt
-        #         ]
-        # print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
-        # print(f'AUT(prauc inliers,{N}) := {prauc_in_aut}')
-        # print(f'AUT(prauc outliers,{N}) := {prauc_out_aut}')
-        aut_results[key].extend([prauc_in_aut,prauc_out_aut])
+        label_stats[key] = [float(value[2]), float(value[3]),
+                            float(value[4]), float(value[5])]
+
+    # Compute mean and std of labeling counts across seeds
+    label_arr = np.array(list(label_stats.values()))  # shape: (n_seeds, 4)
+    label_avg = label_arr.mean(axis=0)
+    label_std = label_arr.std(axis=0)
+
+    # Print labeling stats table (same format as before)
+    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format(
+        'Cols', 'Self_labels (Benign)', 'Self_labels (Attack)', 'Total (self-label)',
+        'Analyst_labels (Benign)', 'Analyst_labels (Attack)', 'Total (analyst-label)'))
     print("-"*80)
-    
-    
-    aut_results_values = list(aut_results.values())
-    
-    # aut_average = [sum(sub_list) / len(sub_list) for sub_list in zip(*aut_results_values)]
-    aut_average = (np.mean(np.array(list(aut_results.values())),axis=0)).tolist()
-    auc_std = (np.std(np.array(list(aut_results.values())),axis=0)).tolist()
-    print("{:<20}  {:<20}  {:<20}".format('Cols','AUT(Benign)-seen tasks','AUT(Attack)-seen tasks'))
+    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format(
+        'Mean',
+        label_avg[0], label_avg[1], label_avg[0] + label_avg[1],
+        label_avg[2], label_avg[3], label_avg[2] + label_avg[3]))
+    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format(
+        'Variance',
+        label_std[0], label_std[1], '---',
+        label_std[2], label_std[3], '---'))
     print("-"*80)
-    print("{:<20}  {:<20}  {:<20}".format('Mean',float(str(aut_average[0])[:5]), float(str(aut_average[1])[:5])))
-    print("{:<20}  {:<20}  {:<20}".format('Variance',float(str(auc_std[0])[:5]), float(str(auc_std[1])[:5])))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}".format('Cols','AUT(Benign)-unseen tasks','AUT(Attack)-unseen tasks'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}".format('Mean',float(str(aut_average[2])[:5]), float(str(aut_average[3])[:5])))
-    print("{:<20}  {:<20}  {:<20}".format('Variance',float(str(auc_std[2])[:5]), float(str(auc_std[3])[:5])))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}".format('Cols','AUT(Benign)-all tasks','AUT(Attack)-all tasks'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}".format('Mean',float(str(aut_average[8])[:5]), float(str(aut_average[9])[:5])))
-    print("{:<20}  {:<20}  {:<20}".format('Variance',float(str(auc_std[8])[:5]), float(str(auc_std[9])[:5])))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format('Cols','Self_labels (Benign)', 'Self_labels (Attack)','Total (self-label)','Analyst_labels (Benign)', 'Analyst_labels (Attack)','Total (analyst-label)'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format('Mean',float(str(aut_average[4])),float(str(aut_average[5])),float(str(aut_average[5]+aut_average[4])),float(str(aut_average[6])),float(str(aut_average[7])),float(str(aut_average[6]+aut_average[7]))))
-    print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20}".format('Variance',float(str(auc_std[4])),float(str(auc_std[5])),'---',float(str(auc_std[6])),float(str(auc_std[7])),'---'))
-    print("-"*80)
-    
+
+    # ── Helper: AUT via trapezoidal rule over per-task PR-AUC values ─────────────
+    # AUT = (1/(N-1)) * sum of trapezoids between consecutive tasks.
+    # This is computed on the seed-averaged curve, not averaged over per-seed AUTs.
+    def compute_aut(prauc_list):
+        n = len(prauc_list)
+        if n < 2:
+            return float('nan')
+        return sum((prauc_list[i] + prauc_list[i + 1]) / 2 for i in range(n - 1)) / (n - 1)
+
+    # ── Per-task PR-AUC, FPR, FNR averaged across seeds + AUT on averaged curve ──
+    # result_key mapping:
+    #   0 = seen tasks result   (tasks 0 .. training_cutoff-1)
+    #   1 = unseen tasks result (tasks training_cutoff .. end)
+    #   6 = all tasks result    (tasks 0 .. end)
+    #
+    # Each result has the structure returned by testing():
+    #   [0] prauc_in_pnt  – list of PR-AUC (benign) per task
+    #   [1] prauc_out_pnt – list of PR-AUC (attack) per task
+    #   [7] fpr_pnt       – list of FPR per task
+    #   [8] fnr_pnt       – list of FNR per task
+    def _per_task_stats(result_key, split_label):
+        # Step 1: gather per-seed per-task lists
+        prauc_ben_seeds, prauc_att_seeds, fpr_seeds, fnr_seeds = [], [], [], []
+        for seed_res in auc_results.values():
+            r = seed_res[result_key]
+            prauc_ben_seeds.append(r[0])  # PR-AUC benign list
+            prauc_att_seeds.append(r[1])  # PR-AUC attack list
+            fpr_seeds.append(r[7])        # FPR list
+            fnr_seeds.append(r[8])        # FNR list
+
+        # Step 2: build (n_seeds, n_tasks) arrays; skip on mismatch
+        try:
+            pb = np.array(prauc_ben_seeds)  # shape: (n_seeds, n_tasks)
+            pa = np.array(prauc_att_seeds)
+            fr = np.array(fpr_seeds)
+            fn = np.array(fnr_seeds)
+        except ValueError:
+            print(f"  Skipping {split_label}: inconsistent task counts across seeds")
+            return
+
+        n_tasks = pb.shape[1]
+
+        # Step 3: mean and std per task across seeds
+        pb_mean, pb_std = pb.mean(axis=0), pb.std(axis=0)
+        pa_mean, pa_std = pa.mean(axis=0), pa.std(axis=0)
+        fr_mean, fr_std = fr.mean(axis=0), fr.std(axis=0)
+        fn_mean, fn_std = fn.mean(axis=0), fn.std(axis=0)
+
+        # Step 4: AUT on the seed-averaged PR-AUC curve (not average of per-seed AUTs)
+        aut_ben = compute_aut(pb_mean.tolist())
+        aut_att = compute_aut(pa_mean.tolist())
+
+        # Step 5: print grid table with per-task mean ± std and AUT in last column
+        print(f"\n{'='*80}")
+        print(f"  Per-task results ({split_label}) — mean ± std across {len(seed_list)} seeds")
+        print(f"{'='*80}")
+        header = ["Metric"] + [f"T{i}" for i in range(n_tasks)] + ["AUT"]
+        rows = [
+            ["PR-AUC Benign (mean)"] + [f"{v:.4f}" for v in pb_mean] + [f"{aut_ben:.4f}"],
+            ["PR-AUC Benign (std) "] + [f"{v:.4f}" for v in pb_std]  + ["---"],
+            ["PR-AUC Attack (mean)"] + [f"{v:.4f}" for v in pa_mean] + [f"{aut_att:.4f}"],
+            ["PR-AUC Attack (std) "] + [f"{v:.4f}" for v in pa_std]  + ["---"],
+            ["FPR (mean)          "] + [f"{v:.4f}" for v in fr_mean] + ["---"],
+            ["FPR (std)           "] + [f"{v:.4f}" for v in fr_std]  + ["---"],
+            ["FNR (mean)          "] + [f"{v:.4f}" for v in fn_mean] + ["---"],
+            ["FNR (std)           "] + [f"{v:.4f}" for v in fn_std]  + ["---"],
+        ]
+        print(tabulate(rows, headers=header, tablefmt="grid"))
+
+    # Print results for each split
+    _per_task_stats(result_key=0, split_label="seen tasks")
+    _per_task_stats(result_key=1, split_label="unseen tasks")
+    _per_task_stats(result_key=6, split_label="all tasks")
+
     print("-"*80)
     total_time = time.time()-start_time
     print("total execution time is %.3f seconds" % (total_time))

@@ -40,64 +40,88 @@ if __name__ == "__main__":
             auc_results[str(seed_value)] = result[str(seed_value)]
         os.unlink(temp_file_name)    
 
-    # print("{:<20}  {:<20}".format('Argument','Value'))
-    # print("*"*80)
-    # for arg in vars(args):
-    #     print("{:<20}  {:<20}".format(arg, getattr(args, arg)))
-    # print("*"*80)    
-    # print("{:<20}  {:<20}  {:<20}  {:<20}  {:<20}  {:<20} {:<20}  {:<20}".format('seed','PR-AUC(O)', 'PR-AUC(I)', 'ROC-AUC','Total train time','Total MIR time','Regular SGD updates','Virtual SGD updates'))
-    # print("*"*80)
-        
-    aut_results = {}
-    for key, value in auc_results.items():
-        # print("training results for seed value",key)
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[0][0],value[0][1],value[0][2],value[0][3],value[0][4],value[0][5],value[0][6]
-        aut_results[key] = [prauc_in_aut,prauc_out_aut]
-    #     pnt_table = [
-    #     # ['task_CI']+ task_CI_pnt, 
-    #     # ['test_CI'] + test_CI_pnt,
-    #     ['prauc Benign traffic'] + prauc_in_pnt, 
-    #     ['prauc Attack traffic'] + prauc_out_pnt
-    # ]
-    #     print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
-    #     print(f'AUT(prauc inliers,{N}) := {prauc_in_aut}')
-    #     print(f'AUT(prauc outliers,{N}) := {prauc_out_aut}')
-    #     print("testing results for seed value",key)
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[1][0],value[1][1],value[1][2],value[1][3],value[1][4],value[1][5],value[1][6]
-        # pnt_table = [ # ['task_CI']+ task_CI_pnt, 
-        #         # ['test_CI'] + test_CI_pnt,
-        #         ['prauc Benign traffic'] + prauc_in_pnt, 
-        #         ['prauc Attack traffic'] + prauc_out_pnt
-        #         ]
-        # print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
-        # print(f'AUT(prauc inliers,{N}) := {prauc_in_aut}')
-        # print(f'AUT(prauc outliers,{N}) := {prauc_out_aut}')
-        aut_results[key].extend([prauc_in_aut,prauc_out_aut])
-        prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N = value[2][0],value[2][1],value[2][2],value[2][3],value[2][4],value[2][5],value[2][6]
-        aut_results[key].extend([prauc_in_aut,prauc_out_aut])
+    print("{:<20}  {:<20}".format('Argument','Value'))
+    print("*"*80)
+    for arg in vars(args):
+        print("{:<20}  {:<20}".format(arg, getattr(args, arg)))
+    print("*"*80)
+    print("*"*80)
+
+    # ── Helper: AUT via trapezoidal rule over per-task PR-AUC values ─────────────
+    # AUT = (1/(N-1)) * sum of trapezoids between consecutive tasks.
+    # This is computed on the seed-averaged curve, not averaged over per-seed AUTs.
+    def compute_aut(prauc_list):
+        n = len(prauc_list)
+        if n < 2:
+            return float('nan')
+        return sum((prauc_list[i] + prauc_list[i + 1]) / 2 for i in range(n - 1)) / (n - 1)
+
+    # ── Per-task PR-AUC, FPR, FNR averaged across seeds + AUT on averaged curve ──
+    # MIR result_key mapping (no OWL, so all-tasks is at index 2, not 6):
+    #   0 = seen tasks result   (tasks 0 .. training_cutoff-1)
+    #   1 = unseen tasks result (tasks training_cutoff .. end)
+    #   2 = all tasks result    (tasks 0 .. end)
+    #
+    # Each result has the structure returned by testing():
+    #   [0] prauc_in_pnt  – list of PR-AUC (benign) per task
+    #   [1] prauc_out_pnt – list of PR-AUC (attack) per task
+    #   [7] fpr_pnt       – list of FPR per task
+    #   [8] fnr_pnt       – list of FNR per task
+    def _per_task_stats(result_key, split_label):
+        # Step 1: gather per-seed per-task lists
+        prauc_ben_seeds, prauc_att_seeds, fpr_seeds, fnr_seeds = [], [], [], []
+        for seed_res in auc_results.values():
+            r = seed_res[result_key]
+            prauc_ben_seeds.append(r[0])  # PR-AUC benign list
+            prauc_att_seeds.append(r[1])  # PR-AUC attack list
+            fpr_seeds.append(r[7])        # FPR list
+            fnr_seeds.append(r[8])        # FNR list
+
+        # Step 2: build (n_seeds, n_tasks) arrays; skip on mismatch
+        try:
+            pb = np.array(prauc_ben_seeds)  # shape: (n_seeds, n_tasks)
+            pa = np.array(prauc_att_seeds)
+            fr = np.array(fpr_seeds)
+            fn = np.array(fnr_seeds)
+        except ValueError:
+            print(f"  Skipping {split_label}: inconsistent task counts across seeds")
+            return
+
+        n_tasks = pb.shape[1]
+
+        # Step 3: mean and std per task across seeds
+        pb_mean, pb_std = pb.mean(axis=0), pb.std(axis=0)
+        pa_mean, pa_std = pa.mean(axis=0), pa.std(axis=0)
+        fr_mean, fr_std = fr.mean(axis=0), fr.std(axis=0)
+        fn_mean, fn_std = fn.mean(axis=0), fn.std(axis=0)
+
+        # Step 4: AUT on the seed-averaged PR-AUC curve (not average of per-seed AUTs)
+        aut_ben = compute_aut(pb_mean.tolist())
+        aut_att = compute_aut(pa_mean.tolist())
+
+        # Step 5: print grid table with per-task mean ± std and AUT in last column
+        print(f"\n{'='*80}")
+        print(f"  Per-task results ({split_label}) — mean ± std across {len(seed_list)} seeds")
+        print(f"{'='*80}")
+        header = ["Metric"] + [f"T{i}" for i in range(n_tasks)] + ["AUT"]
+        rows = [
+            ["PR-AUC Benign (mean)"] + [f"{v:.4f}" for v in pb_mean] + [f"{aut_ben:.4f}"],
+            ["PR-AUC Benign (std) "] + [f"{v:.4f}" for v in pb_std]  + ["---"],
+            ["PR-AUC Attack (mean)"] + [f"{v:.4f}" for v in pa_mean] + [f"{aut_att:.4f}"],
+            ["PR-AUC Attack (std) "] + [f"{v:.4f}" for v in pa_std]  + ["---"],
+            ["FPR (mean)          "] + [f"{v:.4f}" for v in fr_mean] + ["---"],
+            ["FPR (std)           "] + [f"{v:.4f}" for v in fr_std]  + ["---"],
+            ["FNR (mean)          "] + [f"{v:.4f}" for v in fn_mean] + ["---"],
+            ["FNR (std)           "] + [f"{v:.4f}" for v in fn_std]  + ["---"],
+        ]
+        print(tabulate(rows, headers=header, tablefmt="grid"))
+
+    # Print results for each split
+    _per_task_stats(result_key=0, split_label="seen tasks")
+    _per_task_stats(result_key=1, split_label="unseen tasks")
+    _per_task_stats(result_key=2, split_label="all tasks")
 
     print("-"*80)
-    
-    
-    aut_results_values = list(aut_results.values())
-    
-    # aut_average = [sum(sub_list) / len(sub_list) for sub_list in zip(*aut_results_values)]
-    aut_average = (np.mean(np.array(list(aut_results.values())),axis=0)).tolist()
-    aut_std = (np.std(np.array(list(aut_results.values())),axis=0)).tolist()
-    print("{:<20}  {:<20}  {:<20}  ".format('Cols','AUT(Benign)-seen','AUT(Attack)-seen'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20} ".format('Mean',float(str(aut_average[0])[:5]), float(str(aut_average[1]))))    
-    print("{:<20}  {:<20}  {:<20} ".format('std',float(str(aut_std[0])[:5]), float(str(aut_std[1]))))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}  ".format('Cols','AUT(Benign)-unseen','AUT(Attack)-unseen'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20} ".format('Mean',float(str(aut_average[2])[:5]), float(str(aut_average[3]))))    
-    print("{:<20}  {:<20}  {:<20} ".format('std',float(str(aut_std[2])[:5]), float(str(aut_std[3]))))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20}  ".format('Cols','AUT(Benign)-all','AUT(Attack)-all'))
-    print("-"*80)
-    print("{:<20}  {:<20}  {:<20} ".format('Mean',float(str(aut_average[4])[:5]), float(str(aut_average[5]))))    
-    print("{:<20}  {:<20}  {:<20} ".format('std',float(str(aut_std[4])[:5]), float(str(aut_std[5]))))
     total_time = time.time()-start_time
     print("\ntotal execution time is %.3f seconds" % (total_time))
     print("avg execution time %.3f seconds"%(total_time/len(seed_list)))

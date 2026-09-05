@@ -8,6 +8,11 @@ from torch.utils.data import DataLoader,Dataset
 from torch.optim.lr_scheduler import StepLR
 from scipy.spatial.distance import cdist
 from scipy import stats
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+# import os
+
 # from pytorchtools import EarlyStopping
 import subprocess
 import os
@@ -41,7 +46,7 @@ import random
 from math import floor
 from collections import Counter
 from sklearn.metrics import roc_auc_score,precision_recall_curve,auc
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score,confusion_matrix
 from tqdm import tqdm
 import itertools
 import argparse
@@ -83,6 +88,7 @@ nc = 0
 no_tasks = 0
 grad_norm_dict = []
 temp_norm =1
+adp_benign_cos_dist,adp_attack_cos_dist = 0.2,0.2
 # labels_ratio, no_of_rand_samples, minority_alloc = None,None,None
 
 # consecutive_otdd = []
@@ -267,12 +273,13 @@ def get_representation_matrix (net, device, x, y=None,rand_samples=1000):
     example_data = example_data.to(device)
     example_out  = net(example_data)
     
-    batch_list=[int(rand_samples),int(rand_samples),int(rand_samples),int(rand_samples),int(rand_samples),rand_samples,rand_samples] 
+    batch_list=[int(rand_samples),int(rand_samples),int(rand_samples),int(rand_samples),int(rand_samples),rand_samples,rand_samples,rand_samples,rand_samples] 
     mat_list=[] # list contains representation matrix of each layer
     act_key=list(net.act.keys())
     print("keys are",act_key)
 
     for i in range(len(act_key)):
+        # print('key',i)
         bsz=batch_list[i]
         act = net.act[act_key[i]].detach().cpu().numpy()
         activation = act[0:bsz].transpose()
@@ -398,6 +405,66 @@ def compute_distill_loss(unlabeled_pre,unlabeled_x):
     distillation_loss = loss_fn(unlabeled_pre.float(),unlabeled_gt.float())
 
     return [distillation_loss,predicted_labels]
+
+
+def compute_distill_loss_with_confidence(unlabeled_pre,unlabeled_x):
+    
+    global teacher_model1,teacher_model2,teacher_supervised,student_model1,student_model2,student_supervised
+    predicted_labels = None
+
+    if image_resolution is not None:
+       unlabeled_x = unlabeled_x.reshape(image_resolution)
+
+    if mlps == 1:
+        models = [student_model1]
+    elif mlps == 2:
+        models = [student_model1,student_model2]
+    else:
+        models = [student_model1,student_model2,student_supervised]    
+
+    #models = [teacher_model1,teacher_model2]#,teacher_supervised] 
+    
+    class_probs = []  
+
+    with torch.no_grad():
+        for model in models:
+            outputs = torch.softmax(model(unlabeled_x), dim=1)
+            class_probs.append(outputs)
+
+    avg_probs = torch.stack(class_probs).mean(dim=0)
+    max_probs, _ = torch.max(avg_probs, dim=1)
+
+# 2. Confidence threshold
+    mask = max_probs > 0.95
+
+# 3. Safeguard: proceed only if confident samples exist
+    if mask.any():
+        # 4. Restrict to confident samples ONLY
+        confident_probs = avg_probs[mask]
+        confident_unlabeled_pre = unlabeled_pre[mask]
+
+        # 5. Argmax ONLY on confident samples
+        predicted_labels = torch.argmax(confident_probs, dim=1)
+
+        # 6. One-hot pseudo-labels
+        unlabeled_gt = F.one_hot(predicted_labels, num_classes=2)
+
+        # 7. Distillation loss
+        distillation_loss = loss_fn(
+            confident_unlabeled_pre.float(),
+            unlabeled_gt.float()
+    )
+
+    else:
+
+    # No confident samples → no gradient contribution
+        distillation_loss = torch.tensor(
+        0.0, device=avg_probs.device, requires_grad=False
+        )
+    
+
+    return [distillation_loss,predicted_labels,confident_unlabeled_pre]
+
 
 
 def compute_distill_loss_self_supervision(p_m, K,unlabeled_x,encoder_model):
@@ -597,7 +664,8 @@ def sample_batch_from_memory(mem_batchsize,minority_alloc):
         select_indices = min(majority_offset,len(majority_class_idices))
         select_indices = max(1, select_indices)
         # print(majority_class_idices,select_indices)
-        majority_class_idices = random.sample(majority_class_idices,select_indices)
+        # majority_class_idices = random.sample(majority_class_idices,min(len(majority_class_idices),select_indices))# need to comment this and uncomment the next line
+        majority_class_idices = random.sample(majority_class_idices,select_indices)#
         minority_class_indices.extend(majority_class_idices)
         # select_indices = min(mem_batchsize,memory_X.shape[0])
         # minority_class_indices = random.sample(list(range(0,memory_X.shape[0])),select_indices)
@@ -607,13 +675,166 @@ def sample_batch_from_memory(mem_batchsize,minority_alloc):
 
         return memory_X[minority_class_indices],memory_y[minority_class_indices],memory_y_name[minority_class_indices]
     
-    
+
+import numpy as np
+
+# def select_adaptive_percentile(candidate_thresholds):
+#     """
+#     Automatically select a percentile for cosine-distance thresholding
+#     based purely on the empirical distribution shape.
+
+#     No dataset-specific assumptions.
+#     """
+
+#     ct = np.asarray(candidate_thresholds)
+
+#     if len(ct) < 10:
+#         # Not enough samples → conservative fallback
+#         return 95, np.percentile(ct, 95)
+
+#     # --- Robust statistics ---
+#     p25 = np.percentile(ct, 25)
+#     p50 = np.percentile(ct, 50)
+#     p75 = np.percentile(ct, 75)
+#     p90 = np.percentile(ct, 90)
+#     p95 = np.percentile(ct, 95)
+#     p99 = np.percentile(ct, 99)
+
+#     # --- Shape metrics ---
+#     norm_iqr = (p75 - p25) / (p50 + 1e-8)
+#     tail_ratio = p99 / (p50 + 1e-8)
+
+#     # --- Distribution-driven decision ---
+#     # Broad + stable agreement
+#     if norm_iqr > 0.5 and tail_ratio < 10:
+#         chosen_percentile = 25
+
+#     # Narrow core + heavy tail
+#     elif norm_iqr < 0.2 and tail_ratio > 20:
+#         chosen_percentile = 99
+
+#     # Moderate spread
+#     elif norm_iqr < 0.3:
+#         chosen_percentile = 90
+
+#     else:
+#         chosen_percentile = 75
+
+#     selected_threshold = np.percentile(ct, chosen_percentile)
+
+#     return chosen_percentile, selected_threshold
+
+import numpy as np
+
+# def select_adaptive_percentile(candidate_thresholds):
+#     """
+#     Select cosine-distance percentile using only distribution spread.
+#     Fully data-driven, no dataset-specific assumptions.
+#     """
+
+#     ct = np.asarray(candidate_thresholds)
+
+#     if len(ct) < 10:
+#         # Too few samples → conservative fallback
+#         p = 95
+#         return p, np.percentile(ct, p)
+
+#     # Core statistics
+#     p25 = np.percentile(ct, 25)
+#     p50 = np.percentile(ct, 50)
+#     p75 = np.percentile(ct, 75)
+
+#     # Normalized spread (scale-free)
+#     spread = (p75 - p25) / (p50 + 1e-8)
+
+#     # Spread-driven decision
+#     if spread > 0.5:
+#         chosen_percentile = 25      # broad agreement
+#     elif spread > 0.2:
+#         chosen_percentile = 75      # moderate agreement
+#     else:
+#         chosen_percentile = 99      # concentrated agreement
+
+#     selected_threshold = np.percentile(ct, chosen_percentile)
+
+#     return chosen_percentile, selected_threshold
+
+
+import numpy as np
+
+def select_adaptive_percentile(candidate_thresholds):
+    """
+    Select cosine-distance percentile using only tail behavior.
+    Fully empirical and dataset-agnostic.
+    """
+
+    ct = np.asarray(candidate_thresholds)
+
+    if len(ct) < 10:
+        # Conservative fallback for very small samples
+        p = 95
+        return p, np.percentile(ct, p)
+
+    # Robust tail statistics
+    p50 = np.percentile(ct, 50)
+    p99 = np.percentile(ct, 99)
+
+    # Tail heaviness (scale-free)
+    tail_ratio = p99 / (p50 + 1e-8)
+
+    # Tail-driven decision
+    if tail_ratio > 20:
+        chosen_percentile = 99      # very heavy tail
+    elif tail_ratio > 10:
+        chosen_percentile = 90      # moderately heavy tail
+    else:
+        chosen_percentile = 25      # light tail
+
+    selected_threshold = np.percentile(ct, chosen_percentile)
+
+    return chosen_percentile, selected_threshold
+
+
+# def select_adaptive_percentile(candidate_thresholds):
+#     """
+#     Select cosine-distance percentile using only tail behavior.
+#     Fully empirical and dataset-agnostic.
+#     """
+
+#     ct = np.asarray(candidate_thresholds)
+
+#     if len(ct) < 10:
+#         # Conservative fallback for very small samples
+#         p = 95
+#         return p, np.percentile(ct, p)
+
+#     # Robust tail statistics
+#     p50 = np.percentile(ct, 50)
+#     p99 = np.percentile(ct, 99)
+
+#     # Tail heaviness (scale-free)
+#     tail_ratio = p99 / (p50 + 1e-8)
+
+#     # Tail-driven decision
+#     if tail_ratio > 20:
+#         chosen_percentile = 99      # very heavy tail
+#     elif tail_ratio > 10:
+#         chosen_percentile = 90      # moderately heavy tail
+#     else:
+#         chosen_percentile = 25      # light tail
+
+#     selected_threshold = np.percentile(ct, chosen_percentile)
+
+#     return chosen_percentile, selected_threshold
+
+
 def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
 
     global owl_self_labelled_count_class_0, owl_self_labelled_count_class_1
     global owl_analyst_labelled_count_class_0, owl_analyst_labelled_count_class_1
     global truth_agreement_fraction_0,truth_agreement_fraction_1
     global avg_CI
+    global adp_attack_cos_dist,adp_benign_cos_dist
 
     print(f'X shape: {X.shape}')
     dummy_target_label = torch.zeros(X.shape[0])
@@ -715,7 +936,90 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
 
         # Member inference of the top samples based on distance from buffer memory samples
         start_inference = time.time()
-        cos_dist = cdist(top_class_0_data, memory_X,'cosine')   
+        cos_dist = cdist(top_class_0_data, memory_X,'cosine')  
+        
+        if unseen_task == False:
+            # ================= Estimate cos_dist_ adaptively for benign =================
+            memory_y_np = np.asarray(memory_y) 
+            candidate_thresholds = []
+            cos_time = time.time()
+            for i in range(cos_dist.shape[0]):
+                # sort memory samples by cosine distance
+                sorted_idx = np.argsort(cos_dist[i])
+                sorted_dist = cos_dist[i][sorted_idx]
+                # sorted_labels = memory_y[sorted_idx]
+                sorted_labels = memory_y_np[sorted_idx]
+
+                # progressively expand neighborhood
+                benign_count = 0
+                attack_count = 0
+                amount_of_samples = int(0.05*len(sorted_labels))
+                loop_range = amount_of_samples
+                for k in range(0, len(sorted_labels), loop_range):
+                    chunk = sorted_labels[k:k + loop_range]
+
+                    # count labels in this chunk
+                    benign_count += np.sum(chunk == 0)
+                    attack_count += np.sum(chunk == 1)
+
+                    total = benign_count + attack_count
+                    if total == 0:
+                        continue
+
+                    # compute benign agreement
+                    mode_percentage = (max(benign_count, attack_count) / total) * 100
+                    mode_label = 0 if benign_count >= attack_count else 1
+
+                    if mode_label == 0 and mode_percentage >= mode_value:
+                        candidate_thresholds.append(sorted_dist[min(k + loop_range-1, len(sorted_dist) - 1)])
+                        break
+                # for k in range(5, len(sorted_dist), 500):  # small neighborhoods first
+                #     neighbor_labels = sorted_labels[:k]
+                #     mode_label, mode_count = stats.mode(neighbor_labels)
+                #     mode_percentage = (mode_count / k) * 100
+
+                #     # accept only if benign agreement is strong
+                #     if mode_label == 0 and mode_percentage >= mode_value:
+                #         candidate_thresholds.append(sorted_dist[k - 1])
+                #         break
+                    
+
+            # robust aggregation
+            # print(candidate_thresholds)
+            print(select_adaptive_percentile(candidate_thresholds))
+            print(
+    f"candidate_thresholds | "
+    f"min: {min(candidate_thresholds):.4f}, "
+    f"max: {max(candidate_thresholds):.4f}, "
+    f"avg: {sum(candidate_thresholds)/len(candidate_thresholds):.4f},"
+    f"25 percentile: {np.percentile(candidate_thresholds, 25):.4f},"
+    f"50 percentile: {np.percentile(candidate_thresholds, 50):.4f},"
+    f"75 percentile: {np.percentile(candidate_thresholds, 75):.4f},"
+    f"90 percentile: {np.percentile(candidate_thresholds, 90):.4f},"
+    f"95 percentile: {np.percentile(candidate_thresholds, 95):.4f},"
+    f"98 percentile: {np.percentile(candidate_thresholds, 98):.4f},"
+    f"99 percentile: {np.percentile(candidate_thresholds, 99):.4f},"
+)
+
+            # exit()
+            if len(candidate_thresholds) > 0:
+                if adp_benign_cos_dist > 0:
+                    # adp_benign_cos_dist = 0.9 * adp_benign_cos_dist + 0.1 * np.percentile(candidate_thresholds, 99)
+                    # adp_benign_cos_dist = 0.9 * adp_benign_cos_dist + 0.1 * select_adaptive_percentile(candidate_thresholds)[1]
+                    adp_benign_cos_dist = 0.1 * adp_benign_cos_dist + 0.9 * select_adaptive_percentile(candidate_thresholds)[1]
+                else:
+                    # adp_benign_cos_dist = np.percentile(candidate_thresholds, 99)
+                    adp_benign_cos_dist = select_adaptive_percentile(candidate_thresholds)[1]
+                # cos_dist_ip = np.percentile(candidate_thresholds, 75)
+            else:
+                adp_benign_cos_dist = 0.2
+                # cos_dist_ip = 0.2  # safe fallback
+
+            time_elapsed = time.time()-cos_time
+            print(f"[TIMER] Task-level cos_dist_ip computation time: {time_elapsed:.2f} seconds")
+            print(f"[INFO] Adaptive cosine distance threshold = {adp_benign_cos_dist:.4f}")
+        # exit()
+
         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
         # top_k_indices = sorted_indices_temp[:, :1000]
         # # Create boolean mask with True for top k indices, False otherwise
@@ -738,7 +1042,8 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         percentage_mode_value_contributors = []
         Avg_sample_support = []
         Avg_sample_support_counter = 0
-        filtered_indices = cos_dist < cos_dist_ip
+        # filtered_indices = cos_dist < cos_dist_ip
+        filtered_indices = cos_dist < adp_benign_cos_dist
         print(top_class_0_data.shape,filtered_indices.shape)
         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
         rows_to_keep = np.any(filtered_indices, axis=1)
@@ -809,6 +1114,77 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         # Member inference of the top samples based on distance from sample means
         start_inference = time.time()
         cos_dist = cdist(top_class_1_data, memory_X,'cosine')   
+        if unseen_task == False:
+
+            # ================= Estimate cos_dist_ adaptively for attack =================
+            memory_y_np = np.asarray(memory_y)
+            candidate_thresholds_attack = []
+
+            cos_time = time.time()
+
+            for i in range(cos_dist.shape[0]):
+
+                # sort memory samples by cosine distance
+                sorted_idx = np.argsort(cos_dist[i])
+                sorted_dist = cos_dist[i][sorted_idx]
+                sorted_labels = memory_y_np[sorted_idx]
+
+                benign_count = 0
+                attack_count = 0
+                loop_range = amount_of_samples  # chunk size
+
+                for k in range(0, len(sorted_labels), loop_range):
+                    chunk = sorted_labels[k:k + loop_range]
+
+                    # count labels in this chunk
+                    benign_count += np.sum(chunk == 0)
+                    attack_count += np.sum(chunk == 1)
+
+                    total = benign_count + attack_count
+                    if total == 0:
+                        continue
+
+                    # compute attack agreement
+                    mode_percentage = (max(benign_count, attack_count) / total) * 100
+                    mode_label = 1 if attack_count >= benign_count else 0
+
+                    # accept only if ATTACK agreement is strong
+                    if mode_label == 1 and mode_percentage >= mode_value:
+                        candidate_thresholds_attack.append(
+                            sorted_dist[min(k + loop_range - 1, len(sorted_dist) - 1)]
+                        )
+                        break
+#             print(
+#     f"candidate_thresholds | "
+#     f"min: {min(candidate_thresholds_attack):.4f}, "
+#     f"max: {max(candidate_thresholds_attack):.4f}, "
+#     f"avg: {sum(candidate_thresholds_attack)/len(candidate_thresholds_attack):.4f},"
+#     f"25 percentile: {np.percentile(candidate_thresholds_attack, 25):.4f},"
+#     f"50 percentile: {np.percentile(candidate_thresholds_attack, 50):.4f},"
+#     f"75 percentile: {np.percentile(candidate_thresholds_attack, 75):.4f},"
+#     f"90 percentile: {np.percentile(candidate_thresholds_attack, 90):.4f},"
+#     f"95 percentile: {np.percentile(candidate_thresholds_attack, 95):.4f},"
+#     f"98 percentile: {np.percentile(candidate_thresholds_attack, 98):.4f},"
+#     f"99 percentile: {np.percentile(candidate_thresholds_attack, 99):.4f},"
+# )
+            # exit()
+            # robust aggregation
+            if len(candidate_thresholds_attack) > 0:
+                if adp_attack_cos_dist > 0:
+                    # adp_attack_cos_dist = 0.9*adp_attack_cos_dist+0.1*np.percentile(candidate_thresholds_attack, 99)
+                    # adp_attack_cos_dist = 0.9*adp_attack_cos_dist+0.1* select_adaptive_percentile(candidate_thresholds_attack)[1]
+                    adp_attack_cos_dist = 0.1*adp_attack_cos_dist+0.9* select_adaptive_percentile(candidate_thresholds_attack)[1]
+                else:
+                    # adp_attack_cos_dist = np.percentile(candidate_thresholds_attack, 99)
+                    adp_attack_cos_dist = select_adaptive_percentile(candidate_thresholds_attack)[1]
+            else:
+                adp_attack_cos_dist = 0.2  # safe fallback
+
+            time_elapsed = time.time() - cos_time
+            print(f"[TIMER] Adaptive ATTACK cosine distance estimation: {time_elapsed:.3f}s")
+            print(f"[INFO] Adaptive cosine distance threshold = {adp_attack_cos_dist:.4f}")
+            # exit()
+
         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
         # top_k_indices = sorted_indices_temp[:, :1000]
         # # Create boolean mask with True for top k indices, False otherwise
@@ -835,7 +1211,8 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         percentage_mode_value_contributors = []
         Avg_sample_support = []
         Avg_sample_support_counter = 0
-        filtered_indices = cos_dist < cos_dist_ip
+        # filtered_indices = cos_dist < cos_dist_ip
+        filtered_indices = cos_dist < adp_attack_cos_dist
         print(top_class_1_data.shape,filtered_indices.shape)
         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
         rows_to_keep = np.any(filtered_indices, axis=1)
@@ -939,402 +1316,814 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
 
 
 
-# def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_val,y_val,bool_reorganize_memory,owl_data_labeling=False):
+
+
+     
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from torch.nn.functional import cosine_similarity
+
+def get_last_trainable_layer(model):
+    """
+    Returns the last trainable (weight-containing) layer.
+    Model-agnostic and robust.
+    """
+    last_layer = None
+    for module in model.modules():
+        if isinstance(module, torch.nn.Linear):
+            last_layer = module
+    return last_layer
+
+def grad_vector(model):
+    layer = get_last_trainable_layer(model)
+    if layer is None or layer.weight.grad is None:
+        return None
+    return layer.weight.grad.view(-1)
+
+def grad_vector_all_layers(model):
+    """
+    Flatten and concatenate gradients from ALL trainable parameters.
+    Model-agnostic.
+    """
+    grads = []
+    for p in model.parameters():
+        if p.requires_grad and p.grad is not None:
+            grads.append(p.grad.view(-1))
+    if len(grads) == 0:
+        return None
+    return torch.cat(grads)
+
+
+
+# def grad_vector(model):
+#     """Flatten gradients of last layer"""
+#     grads = []
+#     for name, p in model.named_parameters():
+#         print(name)
+#         if p.grad is not None and ("fc" in name or "classifier" in name or "linear" in name):
+#             grads.append(p.grad.view(-1))
+#     if len(grads) == 0:
+#         return None
+#     return torch.cat(grads)
+
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def plot_temporal_cosine_similarity(
+    task_id,
+    cosine_values,
+    class_name,
+    save_dir
+):
+    """
+    Plots cosine similarity between consecutive batch gradients
+    for a single class (benign or attack).
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    steps = np.arange(len(cosine_values))
+
+    plt.figure(figsize=(7, 4.2))
+
+    plt.plot(
+        steps,
+        cosine_values,
+        marker="o",
+        linewidth=2.2,
+        color="#0072B2" if class_name == "Benign" else "#D55E00",
+        label=f"{class_name} temporal cosine similarity"
+    )
+
+    plt.axhline(0.0, linestyle="--", color="gray", alpha=0.4)
+
+    plt.ylim(-1.1, 1.1)
+    plt.yticks(fontweight="bold", fontsize=15)
+    plt.xticks(fontweight="bold", fontsize=15)
+
+    plt.xlabel("Training batch", fontsize=20, fontweight="bold")
+    plt.ylabel("Cosine similarity", fontsize=20, fontweight="bold")
+
+    plt.legend(frameon=False, fontsize=18, loc="upper right")
+    plt.grid(axis="y", linestyle="--", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(
+        f"{save_dir}/task_{task_id}_{class_name.lower()}_temporal_cosine.pdf",
+        bbox_inches="tight"
+    )
+    plt.close()
+
+
+def plot_temporal_gradient_norm(
+    task_id,
+    norm_values,
+    class_name,
+    save_dir
+):
+    """
+    Plots gradient norm evolution across batches
+    for a single class (benign or attack).
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    steps = np.arange(len(norm_values))
+
+    plt.figure(figsize=(7, 4.2))
+
+    plt.plot(
+        steps,
+        norm_values,
+        marker="s",
+        linewidth=2.2,
+        color="#009E73" if class_name == "Benign" else "#CC79A7",
+        label=f"{class_name} gradient norm"
+    )
+
+    plt.yticks(fontweight="bold", fontsize=15)
+    plt.xticks(fontweight="bold", fontsize=15)
+
+    if class_name == 'Benign':
+        plt.ylim(0.0,3.0)
+    else:
+        plt.ylim(0.0,7.0)    
+
+
+    plt.xlabel("Training batch", fontsize=20, fontweight="bold")
+    plt.ylabel("Gradient norm", fontsize=20, fontweight="bold")
+
+    plt.legend(frameon=False, fontsize=18, loc="upper right")
+    plt.grid(axis="y", linestyle="--", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(
+        f"{save_dir}/task_{task_id}_{class_name.lower()}_gradient_norm.pdf",
+        bbox_inches="tight"
+    )
+    plt.close()
+
+
+def plot_gradient_dynamics_cosine(task_id, ratios, cosines, save_dir):
+    os.makedirs(save_dir, exist_ok=True)
+
+    steps = np.arange(len(ratios))
+
+    plt.figure(figsize=(7, 4.2))
     
-#     global memory_X, memory_y, memory_y_name,local_count,global_count,local_store,input_shape,memory_size,task_num
-#     global classes_so_far,full,global_priority_list,local_priority_list,memory_population_time,replay_size
-#     global memory_population_time,epochs,grad_norm_dict,temp_norm
-#     global student_optimizer1,student_optimizer2,student_supervised_optimizer
-#     global teacher_model1,teacher_model2,teacher_supervised,student_model1,student_model2,student_supervised
-#     global truth_agreement_fraction_0, truth_agreement_fraction_1 
-#     global avg_CI, CI_list 
+    plt.plot(
+        steps, cosines,
+        marker="s", linewidth=2.2,
+        color="#D55E00", label="Cosine similarity"
+    )
 
-#     if str_train_model == "student1":
-#         model = student_model1
-#         opt = student_optimizer1
-#         teacher_model = teacher_model1
-#     elif str_train_model == "student2":
-#         model = student_model2
-#         opt = student_optimizer2
-#         teacher_model = teacher_model2
-#     elif str_train_model == "student_supervised":
-#         model = student_supervised
-#         opt = student_supervised_optimizer    
-#         teacher_model = teacher_supervised    
+    plt.axhline(1.0, linestyle="--", color="gray", alpha=0.4)
+    # plt.ylim(0.0, 50.0)
+    # plt.ylim(-10.0,10.0)
+    plt.ylim(-2.0,2.0)
+    plt.yticks(fontweight="bold",fontsize=15)
+    plt.xticks(fontweight="bold",fontsize=15)
+    plt.xlabel("Training batch", fontsize=20, fontweight="bold")
+    plt.ylabel("Gradient statistic", fontsize=20, fontweight="bold")
+    # plt.title(f"Gradient dominance & interference (Task {task_id})", fontsize=13)
 
-#     grad_norm_list = []
+    plt.legend(frameon=False, fontsize=20, loc="upper right")
+    plt.grid(axis="y", linestyle="--", alpha=0.3)
 
-#     valid_loader = torch.utils.data.DataLoader(dataset(X_val,y_val),
-#                                                batch_size=batch_size,
-#                                             #    sampler=valid_sampler,
-#                                                num_workers=0)
-#     feature_mat = []
-#     X,y,y_classname = tasks[0][0],tasks[0][1],tasks[0][2]
-#     y_large,y_small = max(np.sum(y == 0),np.sum(y == 1)),min(np.sum(y == 0),np.sum(y == 1))
-#     print("majority class",y_large)
-#     print("minority class",y_small)
-#     print("class imbalance ratio",y_small/(y_large+y_small))
-#     # print("computed class imbalce ratio", clustering_class_imbalance(X))
-#     unique_y_classname = np.unique(y_classname)
-#     if unique_y_classname[0]%2 == 0:
-#         attack_y_name = unique_y_classname[0]
-#         benign_y_name = unique_y_classname[1]
-#     else:
-#         attack_y_name = unique_y_classname[1]
-#         benign_y_name = unique_y_classname[0]
+    plt.tight_layout()
+    # plt.savefig(f"{save_dir}/task_{task_id}_gradient_dynamics.pdf", bbox_inches="tight")
+    plt.savefig(f"{save_dir}/task_{task_id}_gradient_dynamics_cosine.pdf", bbox_inches="tight")
+    plt.close()
 
-#     # if task_id > 0:
-#     #     compute_otdd(task_id, X, memory_X, memory_y_name, attack_y_name, benign_y_name)
+def plot_gradient_dynamics(task_id, ratios, cosines, save_dir):
+    os.makedirs(save_dir, exist_ok=True)
 
-#     task_size = X.shape[0]
-#     if owl_data_labeling == False:
+    steps = np.arange(len(ratios))
 
-#         if task_id == 0:
-#             labeled_indicies,unlabeled_indicies=split_a_task(tasks,0.99,task_class_ids)
-#         else:
-#             labeled_indicies,unlabeled_indicies=split_a_task(tasks,labels_ratio,task_class_ids)
-#         labeled_X,labeled_y,labeled_y_classname = X[labeled_indicies],y[labeled_indicies],y_classname[labeled_indicies]
-#         X_unlab,y_unlab,y_unlabclassname = X[unlabeled_indicies],y[unlabeled_indicies],y_classname[unlabeled_indicies]
+    plt.figure(figsize=(7, 4.2))
+    plt.plot(
+        steps, ratios,
+        marker="o", linewidth=2.2,
+        color="#2E8B57", label="‖∇benign‖ / ‖∇attack‖"
+    )
+    # plt.plot(
+    #     steps, cosines,
+    #     marker="s", linewidth=2.2,
+    #     color="#D55E00", label="Cosine similarity"
+    # )
+
+    plt.axhline(1.0, linestyle="--", color="gray", alpha=0.4)
+    if task_id == 1:
+        plt.ylim(0.0, 50.0)
+    elif task_id in [2,3,4]:
+        plt.ylim(0.0,4,0)    
+    else:
+        plt.ylim(0.0, 10.0)
+    # plt.ylim(-10.0,10.0)
+    plt.yticks(fontweight="bold",fontsize=15)
+    plt.xticks(fontweight="bold",fontsize=15)
+    plt.xlabel("Training batch", fontsize=20, fontweight="bold")
+    plt.ylabel("Gradient statistic", fontsize=20, fontweight="bold")
+    # plt.title(f"Gradient dominance & interference (Task {task_id})", fontsize=13)
+
+    plt.legend(frameon=False, fontsize=20, loc="upper right")
+    plt.grid(axis="y", linestyle="--", alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/task_{task_id}_gradient_dynamics.pdf", bbox_inches="tight")
+    # plt.savefig(f"{save_dir}/task_{task_id}_gradient_dynamics_cosine.pdf", bbox_inches="tight")
+    plt.close()
+
+
+def train_and_gradient(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_val,y_val,bool_reorganize_memory,owl_data_labeling=False):
+    
+    global memory_X, memory_y, memory_y_name,local_count,global_count,local_store,input_shape,memory_size,task_num
+    global classes_so_far,full,global_priority_list,local_priority_list,memory_population_time,replay_size
+    global memory_population_time,epochs,grad_norm_dict,temp_norm
+    global student_optimizer1,student_optimizer2,student_supervised_optimizer
+    global teacher_model1,teacher_model2,teacher_supervised,student_model1,student_model2,student_supervised
+    global truth_agreement_fraction_0, truth_agreement_fraction_1 
+    global avg_CI, CI_list 
+
+    if str_train_model == "student1":
+        model = student_model1
+        opt = student_optimizer1
+        teacher_model = teacher_model1
+    elif str_train_model == "student2":
+        model = student_model2
+        opt = student_optimizer2
+        teacher_model = teacher_model2
+    elif str_train_model == "student_supervised":
+        model = student_supervised
+        opt = student_supervised_optimizer    
+        teacher_model = teacher_supervised    
+
+     # ================= Gradient analysis buffers =================
+    grad_ratio_list = []      # ||∇benign|| / ||∇attack||
+    grad_cosine_list = []    # cosine similarity between gradients
+
+    # NEW: same-class temporal analysis
+    benign_norm_list = []
+    attack_norm_list = []
+
+    benign_temporal_cosine = []   # cos(g_b[t], g_b[t-1])
+    attack_temporal_cosine = []   # cos(g_a[t], g_a[t-1])
+
+    prev_g_b = None
+    prev_g_a = None
+   
+
+    grad_norm_list = []
+
+    valid_loader = torch.utils.data.DataLoader(dataset(X_val,y_val),
+                                               batch_size=batch_size,
+                                            #    sampler=valid_sampler,
+                                               num_workers=0)
+    feature_mat = []
+    X,y,y_classname = tasks[0][0],tasks[0][1],tasks[0][2]
+    y_large,y_small = max(np.sum(y == 0),np.sum(y == 1)),min(np.sum(y == 0),np.sum(y == 1))
+    print("majority class",y_large)
+    print("minority class",y_small)
+    print("class imbalance ratio",y_small/(y_large+y_small))
+    # print("computed class imbalce ratio", clustering_class_imbalance(X))
+    unique_y_classname = np.unique(y_classname)
+    if unique_y_classname[0]%2 == 0:
+        attack_y_name = unique_y_classname[0]
+        benign_y_name = unique_y_classname[1]
+    else:
+        attack_y_name = unique_y_classname[1]
+        benign_y_name = unique_y_classname[0]
+
+    # if task_id > 0:
+    #     compute_otdd(task_id, X, memory_X, memory_y_name, attack_y_name, benign_y_name)
+
+    task_size = X.shape[0]
+    # if True or owl_data_labeling == False: #for SPIDER
+    if owl_data_labeling == False:
+
+        if task_id == 0:
+            labeled_indicies,unlabeled_indicies=split_a_task(tasks,0.99,task_class_ids)
+        else:
+            labeled_indicies,unlabeled_indicies=split_a_task(tasks,labels_ratio,task_class_ids)
+        labeled_X,labeled_y,labeled_y_classname = X[labeled_indicies],y[labeled_indicies],y_classname[labeled_indicies]
+        X_unlab,y_unlab,y_unlabclassname = X[unlabeled_indicies],y[unlabeled_indicies],y_classname[unlabeled_indicies]
         
-#         # Computing class imbalance in the labeled samples
-#         maj_class_count,min_class_count = max(np.sum(labeled_y == 0),np.sum(labeled_y == 1)),min(np.sum(labeled_y == 0),np.sum(labeled_y == 1))
-#         CI_list.append(min_class_count/(maj_class_count+min_class_count))
-#         # CI_list.append(maj_class_count/(min_class_count))
-#         # CI_list.append(np.sum(labeled_y == 0)/(np.sum(labeled_y == 1) + np.sum(labeled_y == 0)))
-#         # print("majority samples",maj_class_count)
-#         # print("minority samples",min_class_count)
-#         # CI_list.append(np.sum(labeled_y == 0)/(np.sum(labeled_y == 1) + np.sum(labeled_y == 0)))
-#         print(f'Class Imbalance for task {task_id} (% of class 0 samples)= {CI_list[-1]}\n')
-#         avg_CI = np.mean(CI_list)
+        # Computing class imbalance in the labeled samples
+        maj_class_count,min_class_count = max(np.sum(labeled_y == 0),np.sum(labeled_y == 1)),min(np.sum(labeled_y == 0),np.sum(labeled_y == 1))
+        CI_list.append(min_class_count/(maj_class_count+min_class_count))
+        # CI_list.append(maj_class_count/(min_class_count))
+        # CI_list.append(np.sum(labeled_y == 0)/(np.sum(labeled_y == 1) + np.sum(labeled_y == 0)))
+        # print("majority samples",maj_class_count)
+        # print("minority samples",min_class_count)
+        # CI_list.append(np.sum(labeled_y == 0)/(np.sum(labeled_y == 1) + np.sum(labeled_y == 0)))
+        print(f'Class Imbalance for task {task_id} (% of class 0 samples)= {CI_list[-1]}\n')
+        avg_CI = np.mean(CI_list)
 
-#         # Computing class imbalance ratio for the task (0:1)
-#         if task_id > 0:
-#             task_truth_agreement_fractions = owl_data_labeling_strategy(X, y, y_classname, unseen_task=False)
-#             print(f'\nCurrent task truth agreement fractions = {task_truth_agreement_fractions}')
-#             print(truth_agreement_fraction_0, truth_agreement_fraction_1)
-#             ## accumulation
-#             if truth_agreement_fraction_0 is None:
-#                 truth_agreement_fraction_0 = task_truth_agreement_fractions[0] if task_truth_agreement_fractions[0] != 0 else None
-#             else:
-#                 truth_agreement_fraction_0 = beta*truth_agreement_fraction_0 + (1 - beta)*task_truth_agreement_fractions[0] if task_truth_agreement_fractions[0] != 0 else truth_agreement_fraction_0
+        # Computing class imbalance ratio for the task (0:1)
+        if task_id > 0:
+            task_truth_agreement_fractions = owl_data_labeling_strategy(X, y, y_classname, unseen_task=False)
+            print(f'\nCurrent task truth agreement fractions = {task_truth_agreement_fractions}')
+            print(truth_agreement_fraction_0, truth_agreement_fraction_1)
+            ## accumulation
+            if truth_agreement_fraction_0 is None:
+                truth_agreement_fraction_0 = task_truth_agreement_fractions[0] if task_truth_agreement_fractions[0] != 0 else None
+            else:
+                truth_agreement_fraction_0 = beta*truth_agreement_fraction_0 + (1 - beta)*task_truth_agreement_fractions[0] if task_truth_agreement_fractions[0] != 0 else truth_agreement_fraction_0
             
-#             if truth_agreement_fraction_1 is None:
-#                 truth_agreement_fraction_1 = task_truth_agreement_fractions[1] if task_truth_agreement_fractions[1] != 0 else None
-#             else:
-#                 truth_agreement_fraction_1 = beta*truth_agreement_fraction_1 + (1 - beta)*task_truth_agreement_fractions[1] if task_truth_agreement_fractions[1] != 0 else truth_agreement_fraction_1
+            if truth_agreement_fraction_1 is None:
+                truth_agreement_fraction_1 = task_truth_agreement_fractions[1] if task_truth_agreement_fractions[1] != 0 else None
+            else:
+                truth_agreement_fraction_1 = beta*truth_agreement_fraction_1 + (1 - beta)*task_truth_agreement_fractions[1] if task_truth_agreement_fractions[1] != 0 else truth_agreement_fraction_1
 
-#             # truth_agreement_fraction_0, truth_agreement_fraction_1 = min(0.5,truth_agreement_fraction_0),min(0.5,truth_agreement_fraction_1)
-#             print(truth_agreement_fraction_0, truth_agreement_fraction_1)
-#         # #     print()
+            # truth_agreement_fraction_0, truth_agreement_fraction_1 = min(0.5,truth_agreement_fraction_0),min(0.5,truth_agreement_fraction_1)
+            print(truth_agreement_fraction_0, truth_agreement_fraction_1)
+        #     print()
 
 
-#     else:
-#         labeled_X, labeled_y, labeled_y_classname, X_unlab, labeled_indicies,unlabeled_indicies = owl_data_labeling_strategy(X, y, y_classname, unseen_task=True)
+    else:
+        labeled_X, labeled_y, labeled_y_classname, X_unlab, labeled_indicies,unlabeled_indicies = owl_data_labeling_strategy(X, y, y_classname, unseen_task=True)
         
-#         # labeled_X_class_0,labeled_X_class_1,X_unlab = open_world_data_labeling(X)
-#         # labeled_X = np.concatenate((labeled_X_class_0,labeled_X_class_1),axis=0)
-#         # labeled_y = np.concatenate((np.zeros((labeled_X_class_0.shape[0],), dtype=np.int64),np.ones((labeled_X_class_1.shape[0],), dtype=np.int64)),axis=0)
-#         # labeled_y_classname = np.concatenate((np.full((labeled_X_class_0.shape[0],),fill_value=benign_y_name,dtype=np.int64),np.full((labeled_X_class_1.shape[0],),fill_value=attack_y_name,dtype=np.int64)),axis=0)
-#         # random_indices = np.random.permutation(len(labeled_X))
-#         # labeled_X,labeled_y,labeled_y_classname = X[random_indices],y[random_indices],y_classname[random_indices]
-#         # labeled_indicies = [lab_idx_num for lab_idx_num in range(labeled_X.shape[0])]
-#         # unlabeled_indicies = [unlab_idx_num+len(labeled_indicies) for unlab_idx_num in range(X_unlab.shape[0])]
-#         # labeled_indicies,unlabeled_indicies=open_world_data_labeling(X)
-#         # labeled_X,labeled_y,labeled_y_classname = X[labeled_indicies],y[labeled_indicies],y_classname[labeled_indicies]
-#         # X_unlab,y_unlab,y_unlabclassname = X[unlabeled_indicies],y[unlabeled_indicies],y_classname[unlabeled_indicies]
+        # labeled_X_class_0,labeled_X_class_1,X_unlab = open_world_data_labeling(X)
+        # labeled_X = np.concatenate((labeled_X_class_0,labeled_X_class_1),axis=0)
+        # labeled_y = np.concatenate((np.zeros((labeled_X_class_0.shape[0],), dtype=np.int64),np.ones((labeled_X_class_1.shape[0],), dtype=np.int64)),axis=0)
+        # labeled_y_classname = np.concatenate((np.full((labeled_X_class_0.shape[0],),fill_value=benign_y_name,dtype=np.int64),np.full((labeled_X_class_1.shape[0],),fill_value=attack_y_name,dtype=np.int64)),axis=0)
+        # random_indices = np.random.permutation(len(labeled_X))
+        # labeled_X,labeled_y,labeled_y_classname = X[random_indices],y[random_indices],y_classname[random_indices]
+        # labeled_indicies = [lab_idx_num for lab_idx_num in range(labeled_X.shape[0])]
+        # unlabeled_indicies = [unlab_idx_num+len(labeled_indicies) for unlab_idx_num in range(X_unlab.shape[0])]
+        # labeled_indicies,unlabeled_indicies=open_world_data_labeling(X)
+        # labeled_X,labeled_y,labeled_y_classname = X[labeled_indicies],y[labeled_indicies],y_classname[labeled_indicies]
+        # X_unlab,y_unlab,y_unlabclassname = X[unlabeled_indicies],y[unlabeled_indicies],y_classname[unlabeled_indicies]
         
-#         # labeled_X_class_0,labeled_X_class_1,X_unlab = open_world_data_labeling(X)
-#         # print("expected class zero labels",labeled_X_class_0.shape)
-#         # print("actual class zero labels,",Counter(y[labeled_X_class_0]))
-#         # print("top 20 class 0 labels",y[labeled_X_class_0[0:20]])
-#         # print("expected class one labels",labeled_X_class_1.shape)
-#         # print("actual class one labels,",Counter(y[labeled_X_class_1]))
+        # labeled_X_class_0,labeled_X_class_1,X_unlab = open_world_data_labeling(X)
+        # print("expected class zero labels",labeled_X_class_0.shape)
+        # print("actual class zero labels,",Counter(y[labeled_X_class_0]))
+        # print("top 20 class 0 labels",y[labeled_X_class_0[0:20]])
+        # print("expected class one labels",labeled_X_class_1.shape)
+        # print("actual class one labels,",Counter(y[labeled_X_class_1]))
     
     
-#     if task_id > 0:
+    if task_id > 0:
               
-#             mem_batch_size = floor(batch_size*b_m)
-#             rem_batch_size = batch_size-mem_batch_size
-#             # task_size = X.shape[0] + memory_X.shape[0] 
-#             labeled_batch_size = floor(rem_batch_size*labels_ratio)
-#             unlabeled_batch_size = rem_batch_size - (labeled_batch_size)
-#             no_of_batches = floor(len(labeled_indicies)/labeled_batch_size)
-#             no_of_unlab_batches = floor(len(unlabeled_indicies)/unlabeled_batch_size)
-#             p = np.random.permutation(labeled_X.shape[0])
-#             labeled_X,labeled_y,labeled_y_classname = labeled_X[p,:],labeled_y[p],labeled_y_classname[p]
+            mem_batch_size = floor(batch_size*b_m)
+            rem_batch_size = batch_size-mem_batch_size
+            # task_size = X.shape[0] + memory_X.shape[0] 
+            labeled_batch_size = floor(rem_batch_size*labels_ratio)
+            unlabeled_batch_size = rem_batch_size - (labeled_batch_size)
+            no_of_labeled_batches = floor(len(labeled_indicies)/labeled_batch_size)
+            #no_of_batches = floor(len(labeled_indicies)/labeled_batch_size)
+            no_of_unlab_batches = floor(len(unlabeled_indicies)/unlabeled_batch_size)
+            p = np.random.permutation(labeled_X.shape[0])
+            labeled_X,labeled_y,labeled_y_classname = labeled_X[p,:],labeled_y[p],labeled_y_classname[p]
+            no_of_batches = max(no_of_labeled_batches,no_of_unlab_batches)
+            print(f"mem_batch:{mem_batch_size}_{labeled_batch_size}_{unlabeled_batch_size},labeled batchs:{no_of_batches} and unlabaled batches:{no_of_unlab_batches}")
+            # exit()
             
-#     else:
-#         # initialize_buffermemory(labeled_task,memory_size)
-#         task_size = X.shape[0]    
-#         # labeled_batch_size = floor(batch_size*0.99)
-#         labeled_batch_size = floor(batch_size*labels_ratio)
-#         unlabeled_batch_size = batch_size-labeled_batch_size
-#         no_of_batches = floor(task_size/batch_size)
+    else:
+        # initialize_buffermemory(labeled_task,memory_size)
+        task_size = X.shape[0]    
+        mem_batch_size = floor(batch_size*b_m)
+        rem_batch_size = batch_size-mem_batch_size
+        labeled_batch_size = rem_batch_size
+        no_of_batches = floor(task_size/rem_batch_size)
+        unlabeled_batch_size=2
+        no_of_labeled_batches = no_of_batches
+        # labeled_batch_size = floor(batch_size*0.99)
+        # labeled_batch_size = floor(batch_size*labels_ratio)
+        # unlabeled_batch_size = batch_size-labeled_batch_size
+        # no_of_batches = floor(task_size/batch_size)
 
-#     if bool_gpm:
-#         for i in range(len(feature_list)):
-#             Uf=torch.Tensor(np.dot(feature_list[i],feature_list[i].transpose())).to(device)
-#             feature_mat.append(Uf)    
+    if bool_gpm:
+        for i in range(len(feature_list)):
+            Uf=torch.Tensor(np.dot(feature_list[i],feature_list[i].transpose())).to(device)
+            feature_mat.append(Uf)    
     
 
-#     ###Buffer memory organization
-#     temp_x,temp_y,temp_yname = labeled_X,labeled_y,labeled_y_classname
-#     if task_id > 0 and bool_reorganize_memory:
-#         mem_start_time = time.time()
-#         if str(mem_strat) == "replace":
+    ###Buffer memory organization
+    temp_x,temp_y,temp_yname = labeled_X,labeled_y,labeled_y_classname
+    if task_id > 0 and bool_reorganize_memory:
+        mem_start_time = time.time()
+        if str(mem_strat) == "replace":
             
-#             tasks[0] = temp_x,temp_y,temp_yname
-#             lab_samples_in_memory = split_a_task(tasks,lab_samp_in_mem_ratio)
-#             tasks[0] = temp_x[lab_samples_in_memory[0],:],temp_y[lab_samples_in_memory[0]],temp_yname[lab_samples_in_memory[0]]
-#             initialize_buffermemory(tasks=tasks,mem_size=memory_size)
-#         elif str(mem_strat) == "equal":
+            tasks[0] = temp_x,temp_y,temp_yname
+            lab_samples_in_memory = split_a_task(tasks,lab_samp_in_mem_ratio)
+            tasks[0] = temp_x[lab_samples_in_memory[0],:],temp_y[lab_samples_in_memory[0]],temp_yname[lab_samples_in_memory[0]]
+            initialize_buffermemory(tasks=tasks,mem_size=memory_size)
+        elif str(mem_strat) == "equal":
             
-#             memory_X, memory_y, memory_y_name = memory_update_equal_allocation2(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.15,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
-#         else:
+            memory_X, memory_y, memory_y_name = memory_update_equal_allocation2(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.15,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
+        else:
             
-#             memory_X, memory_y, memory_y_name = memory_update_equal_allocation(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.85,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
+            memory_X, memory_y, memory_y_name = memory_update_equal_allocation(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.85,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
 
-#         mem_finish_time = time.time()
-#         memory_population_time += mem_finish_time-mem_start_time
-
-
-#     ###Training encoder for self-supervision
-#     print("************Training the Encoder***********")
-#     encoder = vime_self(device,X_unlab, p_m=0.3, alpha=2.0, parameters={'epochs': 5, 'batch_size': 32})
-#     encoder = encoder.eval()
+        mem_finish_time = time.time()
+        memory_population_time += mem_finish_time-mem_start_time
 
 
-#     # prog_bar = tqdm(range(no_of_batches))
-#     # for batch_idx in prog_bar:
-#     # to track the training loss as the model trains
-#     train_losses = []
-#     # to track the validation loss as the model trains
-#     valid_losses = []
-#     # to track the average training loss per epoch as the model trains
-#     avg_train_losses = []
-#     # to track the average validation loss per epoch as the model trains
-#     avg_valid_losses = [] 
-#     check_point_file_name = "checkpoint"+str(os.getpid())+".pt"
-#     check_point_file_name_norm = "checkpoint"+str(os.getpid())+"grad_norm"+".pt"
-#     early_stopping = EarlyStopping(patience=3, verbose=True,path=check_point_file_name)
-#     gradient_rejection = GradientRejection(patience=2, verbose=True,path=check_point_file_name_norm)
-#     scheduler = StepLR(opt, step_size=1, gamma=0.96)
-#     for epoch in range(epochs):
-#         # print("epoch",epoch)
-#         # scheduler.step()
-#         prog_bar = tqdm(range(no_of_batches))
-#         for batch_idx in prog_bar:
-#             model.train()        
-#         # for epoch in range(epochs):
-#             with torch.no_grad():
-#                 if task_id > 0 and batch_idx < no_of_unlab_batches:
-#                     unlabeled_X = torch.from_numpy(X_unlab[batch_idx*unlabeled_batch_size:batch_idx*unlabeled_batch_size+unlabeled_batch_size]).to(device)
-#                 else:
-#                     rand_indices = list(random.sample(range(X_unlab.shape[0]),min(unlabeled_batch_size,X_unlab.shape[0])))
-#                     unlabeled_X = torch.from_numpy(X_unlab[rand_indices]).to(device)
+    ###Training encoder for self-supervision
+    # print("************Training the Encoder***********")
+    # encoder = vime_self(device,X_unlab, p_m=0.3, alpha=2.0, parameters={'epochs': 5, 'batch_size': 32})
+    # encoder = encoder.eval()
 
 
-#                 if image_resolution is not None:
-#                     unlabeled_X = unlabeled_X.reshape(image_resolution)
-#                 unlabeled_pred = torch.softmax(model(unlabeled_X),dim=1).detach()
+    # prog_bar = tqdm(range(no_of_batches))
+    # for batch_idx in prog_bar:
+    # to track the training loss as the model trains
+    train_losses = []
+    # to track the validation loss as the model trains
+    valid_losses = []
+    # to track the average training loss per epoch as the model trains
+    avg_train_losses = []
+    # to track the average validation loss per epoch as the model trains
+    avg_valid_losses = [] 
+    check_point_file_name = "checkpoint"+str(os.getpid())+".pt"
+    check_point_file_name_norm = "checkpoint"+str(os.getpid())+"grad_norm"+".pt"
+    early_stopping = EarlyStopping(patience=3, verbose=True,path=check_point_file_name)
+    gradient_rejection = GradientRejection(patience=2, verbose=True,path=check_point_file_name_norm)
+    scheduler = StepLR(opt, step_size=1, gamma=0.96)
+    for epoch in range(epochs):
+        # print("epoch",epoch)
+        # scheduler.step()
+        prog_bar = tqdm(range(no_of_batches))
+        for batch_idx in prog_bar:
+            model.train()        
+        # for epoch in range(epochs):
+            with torch.no_grad():
+                if task_id > 0 and batch_idx < no_of_unlab_batches:
+                # if task_id > 0 and batch_idx < no_of_unlab_batches:
+                    # unlabeled_X = torch.from_numpy(X_unlab[batch_idx*unlabeled_batch_size:batch_idx*unlabeled_batch_size+unlabeled_batch_size]).to(device)
+                    unlabeled_X = torch.from_numpy(X_unlab[batch_idx*unlabeled_batch_size:batch_idx*unlabeled_batch_size+unlabeled_batch_size]).to(device)
+                else:
+                    rand_indices = list(random.sample(range(X_unlab.shape[0]),min(unlabeled_batch_size,X_unlab.shape[0])))
+                    unlabeled_X = torch.from_numpy(X_unlab[rand_indices]).to(device)
+                    # rand_indices = list(random.sample(range(X_unlab.shape[0]),min(unlabeled_batch_size,X_unlab.shape[0])))
+                    # unlabeled_X = torch.from_numpy(X_unlab[rand_indices]).to(device)
+
+
+                # if image_resolution is not None:
+                #     unlabeled_X = unlabeled_X.reshape(image_resolution)
+                unlabeled_pred = torch.softmax(model(unlabeled_X),dim=1).detach()
+                if task_id >= 0 and batch_idx < no_of_labeled_batches:
+                    lab_X = labeled_X[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]  
+                    lab_y = labeled_y[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]
+                else:
+                    rand_indices = list(random.sample(range(labeled_X.shape[0]),min(labeled_batch_size,labeled_X.shape[0])))    
+                    lab_X = labeled_X[rand_indices]  
+                    lab_y = labeled_y[rand_indices]
             
-#             lab_X = labeled_X[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]  
-#             lab_y = labeled_y[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]
-#             task_lab_X,task_lab_y = lab_X,lab_y
-#             if task_id > 0:
+            
+            # lab_X = labeled_X[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]  
+            # lab_y = labeled_y[batch_idx*labeled_batch_size:batch_idx*labeled_batch_size+labeled_batch_size]
+            task_lab_X,task_lab_y = lab_X,lab_y
+            if task_id >=0:
                 
-#                 mem_batch = sample_batch_from_memory(floor(batch_size*b_m),minority_alloc=batch_minority_alloc)
-#                 if mem_batch is not None and mem_batch[0].shape[0] > 0:
+                mem_batch = sample_batch_from_memory(floor(batch_size*b_m),minority_alloc=batch_minority_alloc)
+                if mem_batch is not None and mem_batch[0].shape[0] > 0:
                     
-#                     lab_X = np.concatenate((lab_X,mem_batch[0]), axis=0)  
-#                     # temp_mem_X = torch.from_numpy(mem_batch[0]).to(device)
-#                     # if image_resolution is not None:
-#                     #     temp_mem_X = temp_mem_X.reshape(image_resolution)
-#                     # temp_mem_y = torch.argmax(teacher_model(temp_mem_X),dim=1).detach().cpu().numpy().squeeze()
+                    lab_X = np.concatenate((lab_X,mem_batch[0]), axis=0)  
+                    # temp_mem_X = torch.from_numpy(mem_batch[0]).to(device)
+                    # if image_resolution is not None:
+                    #     temp_mem_X = temp_mem_X.reshape(image_resolution)
+                    # temp_mem_y = torch.argmax(teacher_model(temp_mem_X),dim=1).detach().cpu().numpy().squeeze()
                     
-#                     # lab_y = np.concatenate((lab_y,temp_mem_y), axis=0)
+                    # lab_y = np.concatenate((lab_y,temp_mem_y), axis=0)
                     
-#                     lab_y = np.concatenate((lab_y,mem_batch[1]), axis=0)
-#             lab_X = torch.from_numpy(lab_X).to(device)
-#             if image_resolution is not None:
-#                     lab_X = lab_X.reshape(image_resolution)
+                    lab_y = np.concatenate((lab_y,mem_batch[1]), axis=0)
+            lab_X = torch.from_numpy(lab_X).to(device)
+            # if image_resolution is not None:
+            #         lab_X = lab_X.reshape(image_resolution)
                    
-#             # print(model(lab_X))
-#             y_pred = torch.softmax(model(lab_X),dim=1).squeeze()#.to(device)                      
-#             lab_y = torch.from_numpy(lab_y).to(device).to(dtype=torch.long)#.reshape(y_pred.shape)
+            # print(model(lab_X))
+            y_pred = torch.softmax(model(lab_X),dim=1).squeeze()#.to(device)                      
+            lab_y = torch.from_numpy(lab_y).to(device).to(dtype=torch.long)#.reshape(y_pred.shape)
 
-#             # lab_y = F.one_hot(lab_y, 2)
-#             sup_loss = loss_fn(y_pred.float(),F.one_hot(lab_y.to(dtype=torch.long), 2).float())#to(device)
-#             # sup_loss = loss_fn(y_pred,lab_y.float())
-#             total_loss = sup_loss
+            # lab_y = F.one_hot(lab_y, 2)
+            sup_loss = loss_fn(y_pred.float(),F.one_hot(lab_y.to(dtype=torch.long), 2).float())#to(device)
+            # sup_loss = loss_fn(y_pred,lab_y.float())
+            total_loss = sup_loss
+
+            # ================= Gradient bias measurement =================
+            # print(lab_y)
+            # exit()
+            benign_mask = (lab_y == 0)
+            attack_mask = (lab_y == 1)
+            loss_b_unsup,loss_a_unsup = 0,0
+            if task_id > 0:
+                if str_train_model!="student_supervised":
+                    #computing the distillation loss
+                    # distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    distil_loss_list = compute_distill_loss_with_confidence(unlabeled_pred,unlabeled_X)
+                    # distil_loss = distil_loss_list[0]
+                    lab_unsup = distil_loss_list[1]
+                    masked_unsup_x = distil_loss_list[2]
+                    # print(lab_unsup)
+                    # print(lab_y)
+                    # exit()
+                    benign_unsup_mask = (lab_unsup==0)
+                    attack_unsup_mask = (lab_unsup==1)
+                    loss_b_unsup = loss_fn(
+                    masked_unsup_x[benign_unsup_mask],
+                    F.one_hot(lab_unsup[benign_unsup_mask], num_classes=2).float()
+                                        )
+                    loss_a_unsup = loss_fn(
+                    masked_unsup_x[attack_unsup_mask],
+                    F.one_hot(lab_unsup[attack_unsup_mask], num_classes=2).float()
+                                        )
+            # print('bengin',benign_mask)
+            # print('attack',attack_mask)
             
-#             distil_loss = 0
-#             distil_loss = torch.as_tensor(distil_loss).to(device)
-#             opt.zero_grad()
-#             if task_id > 0:
-#                 if str_train_model!="student_supervised":
-#                     #computing the distillation loss
-#                     # distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
-#                     # distil_loss = distil_loss_list[0]
-
-#                     distil_loss = compute_distill_loss_self_supervision(p_m=0.3, K=3,unlabeled_x=unlabeled_X,encoder_model=encoder)
-#                     total_loss = total_loss +  alpha *distil_loss  
-#                     # lab_X = torch.cat((lab_X,unlabeled_X),0)
-#                     # lab_y = torch.cat((lab_y,distil_loss_list[1]),0)
-
-#                 contrast_loss = 0
+            if benign_mask.any() and attack_mask.any():
                 
-#                 if bool_closs:
-#                     # positives, negatives = construct_positive_negative_samples(lab_X, lab_y)  
-#                     positives, negatives = construct_positive_negative_samples_from_memory(task_lab_y)  
-#                     anchor_representations = model(torch.from_numpy(task_lab_X).to(device))
-#                     positive_representations = model(positives)
-#                     negative_representations = model(negatives)
-#                     contrast_loss = contrastive_loss(anchor_representations, positive_representations, negative_representations)
-#                 total_loss = total_loss+contrast_loss
-#                 # print(y_pred)
-#                 # print("total_loss",total_loss)
-#                 if bool_gpm:
-#                     total_loss.backward()
-#                     # for i in range(len(feature_list)):
-#                     #     Uf=torch.Tensor(np.dot(feature_list[i],feature_list[i].transpose())).to(device)
-#                     #     feature_mat.append(Uf)
-#                     bn_counter = 0
-#                     for k, (m,params) in enumerate(model.named_parameters()):
-#                         # print(params.grad)
-#                         # print(m)
-#                         if 'bn' not in m:
-#                             k -= bn_counter
-#                             sz =  params.grad.data.size(0)
-#                             params.grad.data = torch.mul((params.grad.data - torch.mul(torch.mm(params.grad.data.view(sz,-1),\
-#                                                     feature_mat[k]).view(params.size()),1)), (1))  
-#                         else:
-#                             bn_counter += 1    
+                # --- Benign gradients ---
+                opt.zero_grad()
+                loss_b = loss_fn(
+                    y_pred[benign_mask],
+                    F.one_hot(lab_y[benign_mask], num_classes=2).float()
+                )
+                loss_b += loss_b_unsup
+                # print('loss b',loss_b)
+                
+                loss_b.backward(retain_graph=True)
+                # g_b = grad_vector(model)
+                g_b = grad_vector_all_layers(model)
+                # print(g_b)
+                # exit()
 
-#             else:       
-#                 total_loss.backward()
+                # --- Attack gradients ---
+                opt.zero_grad()
+                loss_a = loss_fn(
+                    y_pred[attack_mask],
+                    F.one_hot(lab_y[attack_mask], num_classes=2).float()
+                )
+                loss_a += loss_a_unsup
+                loss_a.backward(retain_graph=True)
+                # g_a = grad_vector(model)
+                g_a = grad_vector_all_layers(model)
+#########Uncomment when required for gradient based plots
+                # if g_b is not None and g_a is not None:
+                #     # norm_b = torch.norm(g_b).item()
+                #     # norm_a = torch.norm(g_a).item()
+                #     # norm_b = torch.norm(g_b, p=1)
+                #     # norm_a = torch.norm(g_a, p=1)
+                #     norm_b = torch.norm(g_b, p=2)
+                #     norm_a = torch.norm(g_a, p=2)
+                #     benign_norm_list.append(norm_b.item())
+                #     attack_norm_list.append(norm_a.item())
+
+                #     grad_ratio_list.append((norm_b / (norm_a + 1e-8)).item())
+                #     grad_cosine_list.append(
+                #         cosine_similarity(g_b.unsqueeze(0), g_a.unsqueeze(0)).item()
+                #     )
+                #     # ================= NEW: Temporal cosine similarity =================
+                #     if prev_g_b is not None:
+                #         benign_temporal_cosine.append(
+                #             cosine_similarity(
+                #                 g_b.unsqueeze(0),
+                #                 prev_g_b.unsqueeze(0)
+                #             ).item()
+                #         )
+
+                #     if prev_g_a is not None:
+                #         attack_temporal_cosine.append(
+                #             cosine_similarity(
+                #                 g_a.unsqueeze(0),
+                #                 prev_g_a.unsqueeze(0)
+                #             ).item()
+                #         )
+
+                    # Update previous gradients
+                    # prev_g_b = g_b.detach().clone()
+                    # prev_g_a = g_a.detach().clone()
+
+            
+            distil_loss = 0
+            distil_loss = torch.as_tensor(distil_loss).to(device)
+            opt.zero_grad()
+            if task_id > 0:
+                if str_train_model!="student_supervised":
+                    #computing the distillation loss
+                    # distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    distil_loss_list = compute_distill_loss_with_confidence(unlabeled_pred,unlabeled_X)
+                    distil_loss = distil_loss_list[0]
+
+                    # distil_loss = compute_distill_loss_self_supervision(p_m=0.3, K=3,unlabeled_x=unlabeled_X,encoder_model=encoder)
+                    total_loss = total_loss +  alpha *distil_loss  
+                    # lab_X = torch.cat((lab_X,unlabeled_X),0)
+                    # lab_y = torch.cat((lab_y,distil_loss_list[1]),0)
+
+                contrast_loss = 0
+                
+                if bool_closs:
+                    # positives, negatives = construct_positive_negative_samples(lab_X, lab_y)  
+                    positives, negatives = construct_positive_negative_samples_from_memory(task_lab_y)  
+                    anchor_representations = model(torch.from_numpy(task_lab_X).to(device))
+                    positive_representations = model(positives)
+                    negative_representations = model(negatives)
+                    contrast_loss = contrastive_loss(anchor_representations, positive_representations, negative_representations)
+                total_loss = total_loss+contrast_loss
+                # print(y_pred)
+                # print("total_loss",total_loss)
+
+
+                # grad.data = grad - grad_proj
+
+                        #########################Replace with below code if experts were not used###############################################
+
+                if bool_gpm:
+                    total_loss.backward()
+                    bn_counter = 0
+                    for k, (m,params) in enumerate(model.named_parameters()):
+                        # print(params.grad)
+                        # print(m)
+                        if 'bn' not in m:
+                            k -= bn_counter
+                            sz =  params.grad.data.size(0)
+                            params.grad.data = torch.mul((params.grad.data - torch.mul(torch.mm(params.grad.data.view(sz,-1),\
+                                                    feature_mat[k]).view(params.size()),1)), (1))  
+                        else:
+                            bn_counter += 1    
+
+            else:       
+                total_loss.backward()
 
             
             
-#             opt.step() 
-#             # teacher_model.load_state_dict(model.state_dict(), strict=False)
-#             # gradient_rejection(model=model)
-#             # if gradient_rejection.early_stop:
-#             #     torch.save(model.state_dict(), check_point_file_name_norm)
-#             train_losses.append(total_loss.item())
+            opt.step() 
+            # teacher_model.load_state_dict(model.state_dict(), strict=False)
+            # gradient_rejection(model=model)
+            # if gradient_rejection.early_stop:
+            #     torch.save(model.state_dict(), check_point_file_name_norm)
+            train_losses.append(total_loss.item())
 
-#             y_pred = y_pred.detach().cpu().numpy()
-#             lab_y = lab_y.detach().cpu().numpy()
+            y_pred = y_pred.detach().cpu().numpy()
+            lab_y = lab_y.detach().cpu().numpy()
             
-#             # lr_precision, lr_recall, _ = precision_recall_curve(lab_y, y_pred,pos_label=1)
-#             # lr_auc_outlier =  auc(lr_recall, lr_precision)
+            # lr_precision, lr_recall, _ = precision_recall_curve(lab_y, y_pred,pos_label=1)
+            # lr_auc_outlier =  auc(lr_recall, lr_precision)
             
         
 
-#             # lr_precision, lr_recall, _ = precision_recall_curve(lab_y, [1-x for x in y_pred],pos_label=0)
-#             # lr_auc_inliers =  auc(lr_recall, lr_precision)   
-#             # prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f} - PR-AUC(inliers): {:.2f} - PR_auc(outlier)_curve {:.3f}'.format(
-#             #      total_loss.item(), sup_loss.item(), distil_loss.item(), lr_auc_inliers,lr_auc_outlier ))
-#             # r_auc = roc_auc_score(lab_y, y_pred)
-#             # prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f}'.format(
-#             #      total_loss, sup_loss, distil_loss))
-#             prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f}'.format(
-#                  total_loss.item(), sup_loss.item(), distil_loss.item()))
+            # lr_precision, lr_recall, _ = precision_recall_curve(lab_y, [1-x for x in y_pred],pos_label=0)
+            # lr_auc_inliers =  auc(lr_recall, lr_precision)   
+            # prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f} - PR-AUC(inliers): {:.2f} - PR_auc(outlier)_curve {:.3f}'.format(
+            #      total_loss.item(), sup_loss.item(), distil_loss.item(), lr_auc_inliers,lr_auc_outlier ))
+            # r_auc = roc_auc_score(lab_y, y_pred)
+            # prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f}'.format(
+            #      total_loss, sup_loss, distil_loss))
+            prog_bar.set_description('loss: {:.5f} - sup: {:.5f} - dist_loss: {:.5f}'.format(
+                 total_loss.item(), sup_loss.item(), distil_loss.item()))
         
-#         model.eval() # prep model for evaluation
-#         val_pred,val_gt = [],[]
-#         for data, target in valid_loader:
-#             # pred = torch.argmax(model(data.to(device)),dim=1).reshape(target.shape)
-#             pred = model(data.to(device))[:,1].reshape(target.shape)
-#             y_pred = pred.detach().cpu().numpy().tolist()
-#             val_pred.extend(y_pred)
-#             val_gt.extend(target.detach().cpu().numpy().tolist())
-#         lr_precision, lr_recall, _ = precision_recall_curve(val_gt, [x for x in val_pred], pos_label=1.)
-#         lr_auc_minority =  auc(lr_recall, lr_precision)
-#         # lr_precision, lr_recall, _ = precision_recall_curve(val_gt, val_pred, pos_label=1.)
-#         # lr_auc_majority=  auc(lr_recall, lr_precision)
-#         lr_auc = lr_auc_minority#[lr_auc_minority,lr_auc_majority]
-#         # lr_auc = f1_score(val_gt,val_pred)
-#             # calculate the loss
-#             # loss = loss_fn(pred, target.to(device))
-#             # record validation loss
-#             # valid_losses.append(loss.item())
-#         # valid_losses.append(np.nan_to_num(lr_auc))
-#         # print training/validation statistics 
-#         # calculate average loss over an epoch
-#         train_loss = np.average(train_losses)
-#         # valid_loss = np.average(valid_losses)
-#         avg_train_losses.append(train_loss)
-#         # avg_valid_losses.append(valid_loss)
-#         epoch_len = len(str(epochs))
+        model.eval() # prep model for evaluation
+        val_pred,val_gt = [],[]
+        for data, target in valid_loader:
+            # pred = torch.argmax(model(data.to(device)),dim=1).reshape(target.shape)
+            pred = model(data.to(device))[:,1].reshape(target.shape)
+            y_pred = pred.detach().cpu().numpy().tolist()
+            val_pred.extend(y_pred)
+            val_gt.extend(target.detach().cpu().numpy().tolist())
+        lr_precision, lr_recall, _ = precision_recall_curve(val_gt, [x for x in val_pred], pos_label=1.)
+        lr_auc_minority =  auc(lr_recall, lr_precision)
+        # lr_precision, lr_recall, _ = precision_recall_curve(val_gt, val_pred, pos_label=1.)
+        # lr_auc_majority=  auc(lr_recall, lr_precision)
+        lr_auc = lr_auc_minority#[lr_auc_minority,lr_auc_majority]
+        # lr_auc = f1_score(val_gt,val_pred)
+            # calculate the loss
+            # loss = loss_fn(pred, target.to(device))
+            # record validation loss
+            # valid_losses.append(loss.item())
+        # valid_losses.append(np.nan_to_num(lr_auc))
+        # print training/validation statistics 
+        # calculate average loss over an epoch
+        train_loss = np.average(train_losses)
+        # valid_loss = np.average(valid_losses)
+        avg_train_losses.append(train_loss)
+        # avg_valid_losses.append(valid_loss)
+        epoch_len = len(str(epochs))
         
-#         print_msg = (f'[{epoch:>{epoch_len}}/{epochs:>{epoch_len}}] ' +
-#                      f'train_loss: {train_loss:.5f} ' +
-#                      f'PR-AUC (I): {lr_auc:.5f}')
+        print_msg = (f'[{epoch:>{epoch_len}}/{epochs:>{epoch_len}}] ' +
+                     f'train_loss: {train_loss:.5f} ' +
+                     f'PR-AUC (I): {lr_auc:.5f}')
         
-#         print(print_msg)
+        print(print_msg)
         
-#         # clear lists to track next epoch
-#         train_losses = []
-#         valid_losses = []
+        # clear lists to track next epoch
+        train_losses = []
+        valid_losses = []
         
-#         # early_stopping needs the validation loss to check if it has decresed, 
-#         # and if it has, it will make a checkpoint of the current model
-#         early_stopping(lr_auc, model)
-#         if early_stopping.counter <1:
-#             scheduler.step()
+        # early_stopping needs the validation loss to check if it has decresed, 
+        # and if it has, it will make a checkpoint of the current model
+        early_stopping(lr_auc, model)
+        if early_stopping.counter <1:
+            scheduler.step()
 
-#         if early_stopping.early_stop:
-#             print("Early stopping")
-#             break
-#     # load the last checkpoint with the best model
-#     model.load_state_dict(torch.load(check_point_file_name))
-#     teacher_model.load_state_dict(torch.load(check_point_file_name))
+        if early_stopping.early_stop:
+            print("Early stopping")
+            break
+    # load the last checkpoint with the best model
+    model.load_state_dict(torch.load(check_point_file_name))
+    teacher_model.load_state_dict(torch.load(check_point_file_name))
 
-#     # temp_x,temp_y,temp_yname = X[labeled_indicies,:],y[labeled_indicies],y_classname[labeled_indicies]
+    # temp_x,temp_y,temp_yname = X[labeled_indicies,:],y[labeled_indicies],y_classname[labeled_indicies]
     
-#     # temp_x,temp_y,temp_yname = X[unlabeled_indicies,:],y[unlabeled_indicies],y_classname[unlabeled_indicies]
+    # temp_x,temp_y,temp_yname = X[unlabeled_indicies,:],y[unlabeled_indicies],y_classname[unlabeled_indicies]
     
 
-#     # temp_x,temp_y,temp_yname = labeled_X,labeled_y,labeled_y_classname
-#     # if task_id > 0 and bool_reorganize_memory:
-#     #     mem_start_time = time.time()
-#     #     if str(mem_strat) == "replace":
+    # temp_x,temp_y,temp_yname = labeled_X,labeled_y,labeled_y_classname
+    # if task_id > 0 and bool_reorganize_memory:
+    #     mem_start_time = time.time()
+    #     if str(mem_strat) == "replace":
             
-#     #         tasks[0] = temp_x,temp_y,temp_yname
-#     #         lab_samples_in_memory = split_a_task(tasks,lab_samp_in_mem_ratio)
-#     #         tasks[0] = temp_x[lab_samples_in_memory[0],:],temp_y[lab_samples_in_memory[0]],temp_yname[lab_samples_in_memory[0]]
-#     #         initialize_buffermemory(tasks=tasks,mem_size=memory_size)
-#     #     elif str(mem_strat) == "equal":
+    #         tasks[0] = temp_x,temp_y,temp_yname
+    #         lab_samples_in_memory = split_a_task(tasks,lab_samp_in_mem_ratio)
+    #         tasks[0] = temp_x[lab_samples_in_memory[0],:],temp_y[lab_samples_in_memory[0]],temp_yname[lab_samples_in_memory[0]]
+    #         initialize_buffermemory(tasks=tasks,mem_size=memory_size)
+    #     elif str(mem_strat) == "equal":
             
-#     #         memory_X, memory_y, memory_y_name = memory_update_equal_allocation2(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.15,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
-#     #     else:
+    #         memory_X, memory_y, memory_y_name = memory_update_equal_allocation2(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.15,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
+    #     else:
             
-#     #         memory_X, memory_y, memory_y_name = memory_update_equal_allocation(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.85,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
+    #         memory_X, memory_y, memory_y_name = memory_update_equal_allocation(temp_x,temp_y,temp_yname,memory_size,memory_X, memory_y, memory_y_name,minorityclass_ids,majority_class_memory_share=0.85,random_sample_selection=True,temp_model=model,image_resolution=image_resolution,device=device)
 
-#     #     mem_finish_time = time.time()
-#     #     memory_population_time += mem_finish_time-mem_start_time
+    #     mem_finish_time = time.time()
+    #     memory_population_time += mem_finish_time-mem_start_time
 
-#     # mat_list = []    
-#     temp_x,temp_y,temp_yname = X[labeled_indicies,:],y[labeled_indicies],y_classname[labeled_indicies]
-#     # mat_list = get_representation_matrix (model, device, temp_x, temp_y)
-#     if bool_gpm:
-#         mat_list = get_representation_matrix (model, device, temp_x, temp_y,rand_samples=no_of_rand_samples)
-#         feature_list = update_GPM(model, mat_list, threshold, feature_list) 
+    # mat_list = []    
+    temp_x,temp_y,temp_yname = X[labeled_indicies,:],y[labeled_indicies],y_classname[labeled_indicies]
+    # mat_list = get_representation_matrix (model, device, temp_x, temp_y)
+    if bool_gpm:
+        mat_list = get_representation_matrix (model, device, temp_x, temp_y,rand_samples=no_of_rand_samples)
+        feature_list = update_GPM(model, mat_list, threshold, feature_list) 
       
-#     else:
-#         feature_list = []
+    else:
+        feature_list = []
 
-#     # grad_norm_dict[task_id] = grad_norm_list   
-#     # print(grad_norm_dict)
-#     if os.path.exists(check_point_file_name):
-#         os.remove(check_point_file_name)
-#     if os.path.exists(check_point_file_name_norm):
-#         os.remove(check_point_file_name_norm) 
+    # grad_norm_dict[task_id] = grad_norm_list   
+    # print(grad_norm_dict)
+    if os.path.exists(check_point_file_name):
+        os.remove(check_point_file_name)
+    if os.path.exists(check_point_file_name_norm):
+        os.remove(check_point_file_name_norm) 
 
-#     # print(f'Buffer memory size for task {task_id}: {memory_X.shape}')
+    # print(f'Buffer memory size for task {task_id}: {memory_X.shape}')
+
+    # ================= Save gradient proof plots =================
+    save_dir = (
+        f"./tsne_results/{ds}/GPM_{bool_gpm}/"
+        f"cutoff_{training_cutoff}/gradientproof"
+    )
+
+    # print('gradient ratio',grad_ratio_list)
+
     
-#     return feature_list
+
+    if False and len(grad_ratio_list) > 0:## Remove false to enable plotting
+        plot_gradient_dynamics(
+            task_id=task_id,
+            ratios=grad_ratio_list,
+            cosines=grad_cosine_list,
+            save_dir=save_dir+'/norm_ratio'
+        )
+        plot_gradient_dynamics_cosine(
+            task_id=task_id,
+            ratios=grad_ratio_list,
+            cosines=grad_cosine_list,
+            save_dir=save_dir+'/cosine_sim'
+        )
+
+        # ---- Temporal cosine similarity ----
+        plot_temporal_cosine_similarity(
+            task_id=task_id,
+            cosine_values=benign_temporal_cosine,
+            class_name="Benign",
+            save_dir=save_dir + "/temporal_cosine/Benign"
+        )
+
+        plot_temporal_cosine_similarity(
+            task_id=task_id,
+            cosine_values=attack_temporal_cosine,
+            class_name="Attack",
+            save_dir=save_dir + "/temporal_cosine/Attack"
+        )
+
+        # ---- Temporal gradient norms ----
+        plot_temporal_gradient_norm(
+            task_id=task_id,
+            norm_values=benign_norm_list,
+            class_name="Benign",
+            save_dir=save_dir + "/temporal_norm/Benign"
+        )
+
+        plot_temporal_gradient_norm(
+            task_id=task_id,
+            norm_values=attack_norm_list,
+            class_name="Attack",
+            save_dir=save_dir + "/temporal_norm/Attack"
+        )
+   
+    
+    return feature_list
 
      
 
@@ -1596,7 +2385,8 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
             if task_id > 0:
                 if str_train_model!="student_supervised":
                     #computing the distillation loss
-                    distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    # distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    distil_loss_list = compute_distill_loss_with_confidence(unlabeled_pred,unlabeled_X)
                     distil_loss = distil_loss_list[0]
 
                     # distil_loss = compute_distill_loss_self_supervision(p_m=0.3, K=3,unlabeled_x=unlabeled_X,encoder_model=encoder)
@@ -1616,11 +2406,14 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
                 total_loss = total_loss+contrast_loss
                 # print(y_pred)
                 # print("total_loss",total_loss)
+
+
+                # grad.data = grad - grad_proj
+
+                        #########################Replace with below code if experts were not used###############################################
+
                 if bool_gpm:
                     total_loss.backward()
-                    # for i in range(len(feature_list)):
-                    #     Uf=torch.Tensor(np.dot(feature_list[i],feature_list[i].transpose())).to(device)
-                    #     feature_mat.append(Uf)
                     bn_counter = 0
                     for k, (m,params) in enumerate(model.named_parameters()):
                         # print(params.grad)
@@ -1794,7 +2587,7 @@ def taskwise_lazytrain():
 
     # random.shuffle(task_order)
     print("task order",task_order)
-    threshold = np.array([0.95,0.99,0.99,0.98,0.99,0.99,0.99])
+    threshold = np.array([0.95,0.99,0.99,0.98,0.99,0.99,0.99,0.97,0.99])
     feature_list_student1,feature_list_student2,feature_list_student_supervised =[],[],[]
 
     train_order = task_order[:training_cutoff]
@@ -1856,7 +2649,8 @@ def taskwise_lazytrain():
 
 
         if mlps == 1:
-            feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,False)
+            # feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,False)
+            feature_list_student1 =train_and_gradient("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,False)
                     
         elif mlps == 2:
             feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,False)
@@ -1921,7 +2715,9 @@ def taskwise_lazytrain():
             initialize_buffermemory(tasks=tasks,mem_size=memory_size)
 
         if mlps == 1:
-            feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,True)
+            # continue
+            # feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,True)
+            feature_list_student1 =train_and_gradient("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,True)
                     
         elif mlps == 2:
             feature_list_student1 =train("student1",tasks,task_class_ids,task_id,feature_list_student1,threshold,np.concatenate(val_x_all_tasks, axis=0 ),np.concatenate(val_y_all_tasks, axis=0 ),True,True)
@@ -1942,6 +2738,16 @@ def taskwise_lazytrain():
     test_set_results = []
     with open(temp_filename, 'w') as fp:
         test_set_results.extend([testing(training_cutoff=training_cutoff, seen_data=True),testing(training_cutoff=training_cutoff, seen_data=False),str(owl_self_labelled_count_class_0), str(owl_self_labelled_count_class_1),str(owl_analyst_labelled_count_class_0), str(owl_analyst_labelled_count_class_1),testing(training_cutoff=len(task_order), seen_data=True) ])
+#         test_set_results.extend([ ##enable when tsne is required
+#     testing_tsne(training_cutoff=training_cutoff, seen_data=True),
+#     testing_tsne(training_cutoff=training_cutoff, seen_data=False),
+#     str(owl_self_labelled_count_class_0),
+#     str(owl_self_labelled_count_class_1),
+#     str(owl_analyst_labelled_count_class_0),
+#     str(owl_analyst_labelled_count_class_1),
+#     testing_tsne(training_cutoff=len(task_order), seen_data=True)
+# ])
+
         auc_result[str(args.seed)] = test_set_results
         json.dump(auc_result, fp)
 
@@ -1985,6 +2791,8 @@ def testing(training_cutoff, seen_data=False):
     prauc_out_pnt = []
     en_prauc_in_pnt = []
     en_prauc_out_pnt = []
+    fpr_pnt = []   # FPR per task (FP / (FP + TN))
+    fnr_pnt = []   # FNR per task (FN / (FN + TP))
 
     if seen_data:
         testing_tasks = task_order[:training_cutoff]
@@ -2088,6 +2896,12 @@ def testing(training_cutoff, seen_data=False):
         prauc_out_pnt.append(auc_precision_recall_1)
         en_prauc_in_pnt.append(en_auc_precision_recall_0)
         en_prauc_out_pnt.append(en_auc_precision_recall_1)
+
+        # Compute FPR and FNR at threshold 0.5
+        val_pred_binary = [1 if p >= 0.5 else 0 for p in val_pred]
+        tn, fp, fn, tp = confusion_matrix(val_actual, val_pred_binary, labels=[0, 1]).ravel()
+        fpr_pnt.append(fp / (fp + tn) if (fp + tn) > 0 else 0.0)
+        fnr_pnt.append(fn / (fn + tp) if (fn + tp) > 0 else 0.0)
         
         # print(f'prauc inliers: {auc_precision_recall_in}')        
         # print(f'prauc outliers: {auc_precision_recall_out}')                     
@@ -2099,7 +2913,7 @@ def testing(training_cutoff, seen_data=False):
 
     if N<2:
         print('not printing AUT values since it requires atleast 2 test tasks')
-        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
     
     
     for i in range(N-1):
@@ -2133,8 +2947,562 @@ def testing(training_cutoff, seen_data=False):
     # print('Here json dump of the data for easy unparsing')
     # print(f'#pnt_table#{json.dumps(pnt_table)}#end_pnt_table#')
     # print(f'#train_order#{json.dumps(train_order)}#end_train_order#')
-    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+    # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+    #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
   
+
+
+# def testing_tsne(training_cutoff, seen_data=False):
+
+#     import os
+#     import time
+#     import numpy as np
+#     import torch
+#     import matplotlib.pyplot as plt
+#     from sklearn.manifold import TSNE
+#     from sklearn.metrics import precision_recall_curve, auc
+#     from tabulate import tabulate
+
+#     dataset_loadtime = 0
+
+#     global student_model1, student_model2, student_supervised
+
+#     if mlps == 1:
+#         models = [student_model1]
+#     elif mlps == 2:
+#         models = [student_model1, student_model2]
+#     else:
+#         models = [student_model1, student_model2, student_supervised]
+
+#     prauc_in_pnt, prauc_out_pnt = [], []
+#     en_prauc_in_pnt, en_prauc_out_pnt = [],[]
+
+#     if seen_data:
+#         testing_tasks = task_order[:training_cutoff]
+#         start_id = 0
+#     else:
+#         testing_tasks = task_order[training_cutoff:]
+#         start_id = training_cutoff
+
+#     tsne_root = f"./tsne_results/{ds}/GPM_{bool_gpm}/cutoff_{training_cutoff}"
+#     os.makedirs(tsne_root, exist_ok=True)
+
+#     for task_id, task in enumerate(testing_tasks, start=start_id):
+
+#         task_class_ids, task_minorityclass_ids = [], []
+#         for class_ in task:
+#             task_class_ids.append(class_)
+#             if class_ in minorityclass_ids:
+#                 task_minorityclass_ids.append(class_)
+
+#         start = time.time()
+#         input_shape, tasks, X_test, y_test, _, _ = load_dataset(
+#             pth,
+#             task_class_ids,
+#             task_minorityclass_ids,
+#             tasks_list,
+#             task2_list,
+#             [task],
+#             bool_encode_benign=bool_encode_benign,
+#             bool_encode_anomaly=bool_encode_anomaly,
+#             label=label,
+#             bool_create_tasks_avalanche=False,
+#             load_whole_train_data=False
+#         )
+#         dataset_loadtime += time.time() - start
+
+#         features, target_label = X_test, y_test
+
+#         valid_loader = torch.utils.data.DataLoader(
+#             dataset(features, target_label),
+#             batch_size=batch_size,
+#             num_workers=0
+#         )
+
+#         val_pred, en_val_pred, val_actual = [], [], []
+
+#         # === NEW: containers for embeddings ===
+#         task_embeddings = []
+#         task_labels = []
+
+#         for data, target in valid_loader:
+#             class_probs = []
+
+#             with torch.no_grad():
+#                 for model in models:
+#                     out = torch.softmax(model(data.to(device)), dim=1)
+#                     class_probs.append(out)
+
+#                 # Extract last hidden layer from primary student
+#                 emb = models[0].act['hidden6']
+#                 task_embeddings.append(emb.detach().cpu())
+#                 task_labels.append(target.detach().cpu())
+
+#             pred = torch.stack(class_probs).mean(dim=0)[:, 1].reshape(target.shape)
+
+#             val_pred.extend(pred.cpu().numpy().tolist())
+#             en_val_pred.extend(pred.cpu().numpy().tolist())
+#             val_actual.extend(target.cpu().numpy().tolist())
+
+#         # === PR-AUC computation ===
+#         precision, recall, _ = precision_recall_curve(val_actual, val_pred, pos_label=1.0)
+#         auc_attack = auc(recall, precision)
+
+#         precision, recall, _ = precision_recall_curve(val_actual, [1 - v for v in val_pred], pos_label=0.)
+#         auc_benign = auc(recall, precision)
+
+#         prauc_in_pnt.append(auc_benign)
+#         prauc_out_pnt.append(auc_attack)
+#         en_prauc_in_pnt.append(auc_benign)
+#         en_prauc_out_pnt.append(auc_attack)
+
+#         # === t-SNE visualization ===
+#         task_embeddings = torch.cat(task_embeddings, dim=0).numpy()
+#         task_labels = torch.cat(task_labels, dim=0).numpy()
+
+#         # subsample for t-SNE stability
+#         max_points = 5000
+#         if task_embeddings.shape[0] > max_points:
+#             idx = np.random.choice(task_embeddings.shape[0], max_points, replace=False)
+#             task_embeddings = task_embeddings[idx]
+#             task_labels = task_labels[idx]
+
+#         tsne = TSNE(
+#             n_components=2,
+#             perplexity=30,
+#             learning_rate=200,
+#             n_iter=1000,
+#             init="pca",
+#             random_state=42
+#         )
+
+#         emb_2d = tsne.fit_transform(task_embeddings)
+
+#         plt.figure(figsize=(6, 5))
+#         # Benign traffic (background)
+#         plt.scatter(
+#         emb_2d[task_labels == 0, 0],
+#         emb_2d[task_labels == 0, 1],
+#         s=8,
+#         alpha=0.35,
+#         c="#4C72B0",      # muted blue
+#         edgecolors="none",
+#         label="Benign"
+#     )
+#     # Attack traffic (foreground)
+#         plt.scatter(
+#         emb_2d[task_labels == 1, 0],
+#         emb_2d[task_labels == 1, 1],
+#         s=10,
+#         alpha=0.85,
+#         c="#DD8452",      # muted orange
+#         edgecolors="black",
+#         linewidths=0.2,
+#         label="Attack"
+#     )
+#         plt.legend(
+#     frameon=False,
+#     markerscale=1.5,
+#     fontsize=11,
+#     loc="best"
+#     )
+#         plt.xticks([])
+#         plt.yticks([])
+#         plt.title(
+#     f"t-SNE projections of testset (Task {task_id})",
+#     fontsize=13 
+#     )
+
+#         # plt.scatter(
+#         #     emb_2d[task_labels == 0, 0],
+#         #     emb_2d[task_labels == 0, 1],
+#         #     s=6,
+#         #     alpha=0.4,
+#         #     label="Benign"
+#         # )
+#         # plt.scatter(
+#         #     emb_2d[task_labels == 1, 0],
+#         #     emb_2d[task_labels == 1, 1],
+#         #     s=6,
+#         #     alpha=0.7,
+#         #     label="Attack"
+#         # )
+#         # plt.legend(frameon=False)
+#         # plt.xticks([])
+#         # plt.yticks([])
+#         # plt.title(f"t-SNE of Last-Layer Embeddings (Task {task_id})")
+
+#         plt.tight_layout()
+#         plt.savefig(f"{tsne_root}/tsne_task_{task_id}.pdf", bbox_inches="tight")
+#         plt.close()
+
+#     # === AUT computation ===
+#     N = len(testing_tasks)
+#     prauc_in_aut, prauc_out_aut = 0, 0
+
+#     if N > 1:
+#         for i in range(N - 1):
+#             prauc_in_aut += (prauc_in_pnt[i] + prauc_in_pnt[i + 1]) / 2
+#             prauc_out_aut += (prauc_out_pnt[i] + prauc_out_pnt[i + 1]) / 2
+
+#         prauc_in_aut /= (N - 1)
+#         prauc_out_aut /= (N - 1)
+
+#     print(f"AUT(prauc benign,{N}) := {prauc_in_aut}")
+#     print(f"AUT(prauc attack,{N}) := {prauc_out_aut}")
+
+#     print("\nPNT table:")
+#     pnt_table = [
+#         ['prauc Benign traffic'] + prauc_in_pnt,
+#         ['prauc Attack traffic'] + prauc_out_pnt
+#     ]
+
+#     print(tabulate(
+#         pnt_table,
+#         headers=[''] + [str(training_cutoff + i) if not seen_data else str(i) for i in range(N)],
+#         tablefmt='grid'
+#     ))
+
+#     print(f"dataset loading time: {dataset_loadtime}s\n")
+
+#     return [
+#         prauc_in_pnt,
+#         prauc_out_pnt,
+#         prauc_in_aut,
+#         prauc_out_aut,
+#         training_cutoff,
+#         seen_data,
+#         N
+#     ]
+
+
+def testing_tsne(training_cutoff, seen_data=False):
+
+    import os
+    import time
+    import numpy as np
+    import torch
+    import matplotlib.pyplot as plt
+
+    from sklearn.manifold import TSNE
+    from sklearn.metrics import precision_recall_curve, auc, confusion_matrix
+    from tabulate import tabulate
+
+    dataset_loadtime = 0
+
+    global student_model1, student_model2, student_supervised
+
+    # =========================
+    # Model selection
+    # =========================
+    if mlps == 1:
+        models = [student_model1]
+    elif mlps == 2:
+        models = [student_model1, student_model2]
+    else:
+        models = [student_model1, student_model2, student_supervised]
+
+    # =========================
+    # Metric containers
+    # =========================
+    prauc_in_pnt, prauc_out_pnt = [], []
+    en_prauc_in_pnt, en_prauc_out_pnt = [], []
+
+    # === NEW: FPR / FNR containers ===
+    fpr_per_task = []
+    fnr_per_task = []
+    task_ids = []
+
+    # =========================
+    # Task selection
+    # =========================
+    if seen_data:
+        testing_tasks = task_order[:training_cutoff]
+        start_id = 0
+    else:
+        testing_tasks = task_order[training_cutoff:]
+        start_id = training_cutoff
+
+    tsne_root = f"./tsne_results/{ds}/GPM_{bool_gpm}/cutoff_{training_cutoff}"
+    os.makedirs(tsne_root, exist_ok=True)
+
+    # =========================
+    # Task-wise evaluation
+    # =========================
+    for task_id, task in enumerate(testing_tasks, start=start_id):
+
+        task_class_ids, task_minorityclass_ids = [], []
+        for class_ in task:
+            task_class_ids.append(class_)
+            if class_ in minorityclass_ids:
+                task_minorityclass_ids.append(class_)
+
+        start = time.time()
+        input_shape, tasks, X_test, y_test, _, _ = load_dataset(
+            pth,
+            task_class_ids,
+            task_minorityclass_ids,
+            tasks_list,
+            task2_list,
+            [task],
+            bool_encode_benign=bool_encode_benign,
+            bool_encode_anomaly=bool_encode_anomaly,
+            label=label,
+            bool_create_tasks_avalanche=False,
+            load_whole_train_data=False
+        )
+        dataset_loadtime += time.time() - start
+
+        features, target_label = X_test, y_test
+
+        valid_loader = torch.utils.data.DataLoader(
+            dataset(features, target_label),
+            batch_size=batch_size,
+            num_workers=0
+        )
+
+        val_pred, val_actual = [], []
+
+        # === Embeddings for t-SNE ===
+        task_embeddings = []
+        task_labels = []
+
+        for data, target in valid_loader:
+
+            class_probs = []
+
+            with torch.no_grad():
+                for model in models:
+                    out = torch.softmax(model(data.to(device)), dim=1)
+                    class_probs.append(out)
+
+                # last hidden layer embeddings
+                emb = models[0].act['hidden6']
+                task_embeddings.append(emb.detach().cpu())
+                task_labels.append(target.detach().cpu())
+
+            pred = torch.stack(class_probs).mean(dim=0)[:, 1].reshape(target.shape)
+
+            val_pred.extend(pred.cpu().numpy().tolist())
+            val_actual.extend(target.cpu().numpy().tolist())
+
+        # =========================
+        # PR-AUC
+        # =========================
+        precision, recall, _ = precision_recall_curve(val_actual, val_pred, pos_label=1.0)
+        auc_attack = auc(recall, precision)
+
+        precision, recall, _ = precision_recall_curve(
+            val_actual, [1 - v for v in val_pred], pos_label=0.0
+        )
+        auc_benign = auc(recall, precision)
+
+        prauc_in_pnt.append(auc_benign)
+        prauc_out_pnt.append(auc_attack)
+        en_prauc_in_pnt.append(auc_benign)
+        en_prauc_out_pnt.append(auc_attack)
+
+        # =========================
+        # FPR / FNR computation
+        # =========================
+        binary_pred = (np.array(val_pred) >= 0.5).astype(int)
+        binary_true = np.array(val_actual).astype(int)
+
+        tn, fp, fn, tp = confusion_matrix(binary_true, binary_pred).ravel()
+
+        fpr = fp / (fp + tn + 1e-8)
+        fnr = fn / (fn + tp + 1e-8)
+
+        fpr_per_task.append(fpr)
+        fnr_per_task.append(fnr)
+        task_ids.append(task_id)
+
+        # =========================
+        # t-SNE visualization
+        # =========================
+        task_embeddings = torch.cat(task_embeddings, dim=0).numpy()
+        task_labels = torch.cat(task_labels, dim=0).numpy()
+
+        max_points = 5000
+        if task_embeddings.shape[0] > max_points:
+            idx = np.random.choice(task_embeddings.shape[0], max_points, replace=False)
+            task_embeddings = task_embeddings[idx]
+            task_labels = task_labels[idx]
+
+        tsne = TSNE(
+            n_components=2,
+            perplexity=30,
+            learning_rate=200,
+            n_iter=1000,
+            init="pca",
+            random_state=42
+        )
+
+        emb_2d = tsne.fit_transform(task_embeddings)
+
+        plt.figure(figsize=(6, 5))
+        plt.scatter(
+            emb_2d[task_labels == 0, 0],
+            emb_2d[task_labels == 0, 1],
+            s=8,
+            alpha=0.35,
+            c="#4C72B0",
+            label="Benign"
+        )
+        plt.scatter(
+            emb_2d[task_labels == 1, 0],
+            emb_2d[task_labels == 1, 1],
+            s=10,
+            alpha=0.85,
+            c="#DD8452",
+            edgecolors="black",
+            linewidths=0.2,
+            label="Attack"
+        )
+        plt.legend(frameon=False)
+        plt.xticks([])
+        plt.yticks([])
+        plt.title(f"t-SNE projections of test set (Task {task_id})")
+        plt.tight_layout()
+        plt.savefig(f"{tsne_root}/tsne_task_{task_id}.pdf", bbox_inches="tight")
+        plt.close()
+
+   # =========================
+# FPR / FNR BAR PLOT (ANNOTATED, POLISHED)
+# =========================
+    fig, ax = plt.subplots(figsize=(max(8, 0.85 * len(task_ids)), 6))
+
+    bar_w = 0.45
+    x_pos = np.arange(len(task_ids))
+
+    # Color-blind safe palette (Okabe–Ito)
+    # fpr_color = "#0072B2"   # deep blue
+    # fnr_color = "#D55E00"   # vermillion
+    fpr_color = "#009E73"   # green
+    fnr_color = "#D55E00"   # vermillion
+
+    # Plot bars
+    fpr_bars = ax.bar(
+        x_pos - bar_w / 2,
+        fpr_per_task,
+        width=bar_w,
+        color=fpr_color,
+        edgecolor='black',
+        hatch='//',
+        linewidth=1.0,
+        label="False Positive Rate (FPR)"
+    )
+
+    fnr_bars = ax.bar(
+        x_pos + bar_w / 2,
+        fnr_per_task,
+        width=bar_w,
+        color=fnr_color,
+        edgecolor="black",
+        linewidth=1.0,
+        hatch='xx',
+        label="False Negative Rate (FNR)"
+    )
+
+    # ---- Annotate values on bars (SAFE placement) ----
+    def annotate_bars(bars):
+        for p in bars:
+            height = p.get_height()
+            # cap annotation to stay inside plot
+            y_text = min(height + 0.04, 1.45)
+
+            ax.annotate(
+                f"{height:.2f}",
+                xy=(p.get_x() + p.get_width() / 2, y_text),
+                xytext=(0, 0),
+                textcoords="offset points",
+                ha="center",
+                va="bottom",
+                fontsize=16,
+                fontweight="bold"
+            )
+
+    annotate_bars(fpr_bars)
+    annotate_bars(fnr_bars)
+
+    # Axes & formatting
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(task_ids, rotation=0,fontweight='bold',fontsize=20)
+    ax.set_xlabel("Task ID", fontsize=20,fontweight = 'bold')
+    ax.set_ylabel("Rate", fontsize=20,fontweight = 'bold')
+
+    # 🔒 Add headroom so labels never clip
+    ax.set_ylim(0.0, 1.5)
+    plt.setp(ax.get_yticklabels(), fontsize=20, fontweight='bold')
+
+
+    # ax.set_title(
+    #     "False Positive Rate (FPR) and False Negative Rate (FNR) Across Tasks",
+    #     fontsize=13,
+    #     pad=10
+    # )
+
+    # 🔒 Legend INSIDE plot, top-right
+    ax.legend(
+    frameon=False,
+    fontsize=20,
+    loc="upper right"
+)
+
+
+    # Subtle grid for readability
+    ax.grid(axis="y", linestyle="--", alpha=0.35)
+
+    plt.tight_layout()
+    plt.savefig(f"{tsne_root}/fpr_fnr_per_task.pdf", bbox_inches="tight")
+    plt.close()
+
+
+
+    # =========================
+    # AUT computation
+    # =========================
+    N = len(testing_tasks)
+    prauc_in_aut, prauc_out_aut = 0, 0
+
+    if N > 1:
+        for i in range(N - 1):
+            prauc_in_aut += (prauc_in_pnt[i] + prauc_in_pnt[i + 1]) / 2
+            prauc_out_aut += (prauc_out_pnt[i] + prauc_out_pnt[i + 1]) / 2
+
+        prauc_in_aut /= (N - 1)
+        prauc_out_aut /= (N - 1)
+
+    print(f"AUT(prauc benign,{N}) := {prauc_in_aut}")
+    print(f"AUT(prauc attack,{N}) := {prauc_out_aut}")
+
+    print("\nPNT table:")
+    pnt_table = [
+        ['PR-AUC Benign'] + prauc_in_pnt,
+        ['PR-AUC Attack'] + prauc_out_pnt
+    ]
+
+    print(tabulate(
+        pnt_table,
+        headers=[''] + [str(training_cutoff + i) if not seen_data else str(i) for i in range(N)],
+        tablefmt='grid'
+    ))
+
+    print(f"dataset loading time: {dataset_loadtime:.2f}s\n")
+
+    return [
+        prauc_in_pnt,
+        prauc_out_pnt,
+        prauc_in_aut,
+        prauc_out_aut,
+        fpr_per_task,
+        fnr_per_task,
+        training_cutoff,
+        seen_data,
+        N
+    ]
+
 
 def evaluate_on_sub_testset(test_x,test_y):
     test_x,test_y = np.concatenate( test_x, axis=0 ),np.concatenate( test_y, axis=0 )
@@ -2194,6 +3562,55 @@ def select_random_indices_for_classes(labels, class_label_1, class_label_2, num_
     return random_indices_class_label_1
 
 
+def plot_tsne_task(embeddings, labels, task_id, save_dir, max_points=5000):
+    """
+    embeddings: numpy array [N, D]
+    labels: numpy array [N]
+    """
+
+    if embeddings.shape[0] > max_points:
+        idx = np.random.choice(embeddings.shape[0], max_points, replace=False)
+        embeddings = embeddings[idx]
+        labels = labels[idx]
+
+    tsne = TSNE(
+        n_components=2,
+        perplexity=30,
+        learning_rate=200,
+        n_iter=1000,
+        random_state=42,
+        init="pca"
+    )
+
+    emb_2d = tsne.fit_transform(embeddings)
+
+    plt.figure(figsize=(6, 5))
+
+    plt.scatter(
+        emb_2d[labels == 0, 0],
+        emb_2d[labels == 0, 1],
+        s=6,
+        alpha=0.5,
+        label="Benign"
+    )
+
+    plt.scatter(
+        emb_2d[labels == 1, 0],
+        emb_2d[labels == 1, 1],
+        s=6,
+        alpha=0.7,
+        label="Attack"
+    )
+
+    plt.legend(frameon=False)
+    plt.xticks([])
+    plt.yticks([])
+    plt.title(f"t-SNE of Last-Layer Embeddings (Task {task_id})")
+
+    os.makedirs(save_dir, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/tsne_task_{task_id}.pdf", bbox_inches="tight")
+    plt.close()
 
 
 def tsne_visualize(seed,labels_ratio=0.1,batch_minority=0.5,rand_samples=100,ppt=50):

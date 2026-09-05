@@ -30,7 +30,7 @@ from utils.config.custom_alexnet import AlexNet
 
 import time
 import random
-from sklearn.metrics import roc_auc_score,precision_recall_curve,auc
+from sklearn.metrics import roc_auc_score,precision_recall_curve,auc,confusion_matrix
 from collections import Counter
 import json
 
@@ -554,6 +554,8 @@ def testing(seen_data=False,all_tasks=False):
     test_CI_pnt =[]
     prauc_in_pnt = []
     prauc_out_pnt = []
+    fpr_pnt = []   # FPR per task (FP / (FP + TN))
+    fnr_pnt = []   # FNR per task (FN / (FN + TP))
 
     if seen_data:
         if all_tasks:
@@ -642,21 +644,26 @@ def testing(seen_data=False,all_tasks=False):
         # en_prauc_out_pnt.append(en_auc_precision_recall_out)
         prauc_in_pnt.append(auc_precision_recall_0)
         prauc_out_pnt.append(auc_precision_recall_1)
-        # en_prauc_in_pnt.append(en_auc_precision_recall_0)
-        # en_prauc_out_pnt.append(en_auc_precision_recall_1)
-        
-        # print(f'prauc inliers: {auc_precision_recall_in}')        
-        # print(f'prauc outliers: {auc_precision_recall_out}')                     
+
+        # Compute FPR and FNR at threshold 0.5
+        val_pred_binary = [1 if p >= 0.5 else 0 for p in val_pred]
+        tn, fp, fn, tp = confusion_matrix(val_actual, val_pred_binary, labels=[0, 1]).ravel()
+        fpr_pnt.append(fp / (fp + tn) if (fp + tn) > 0 else 0.0)
+        fnr_pnt.append(fn / (fn + tp) if (fn + tp) > 0 else 0.0)
+
+        # print(f'prauc inliers: {auc_precision_recall_in}')
+        # print(f'prauc outliers: {auc_precision_recall_out}')
         # print('')
-    
+
     N = len(testing_tasks) #number of test tasks
+    prauc_in_aut  = 0
+    prauc_out_aut = 0
 
     if N<2:
         print('not printing AUT values since it requires atleast 2 test tasks')
-        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
-    
-    prauc_in_aut  = 0
-    prauc_out_aut = 0
+        # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+        #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
     for i in range(N-1):
         prauc_in_aut+= (prauc_in_pnt[i]+prauc_in_pnt[i+1])/(2)
         prauc_out_aut+=(prauc_out_pnt[i]+prauc_out_pnt[i+1])/(2)
@@ -676,7 +683,9 @@ def testing(seen_data=False,all_tasks=False):
     print(tabulate(pnt_table, headers = ['']+[str(training_cutoff+i) if not seen_data else str(i) for i in range(N)], tablefmt = 'grid'))
     
     print(f'dataset loading time: {dataset_loadtime}s\n')
-    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+    # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+    #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
 
 def taskwise_lazytrain():
     global test_x,test_y,task_num

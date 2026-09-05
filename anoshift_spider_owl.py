@@ -35,7 +35,7 @@ import time
 import random
 from math import floor
 from collections import Counter
-from sklearn.metrics import roc_auc_score,precision_recall_curve,auc
+from sklearn.metrics import roc_auc_score,precision_recall_curve,auc,confusion_matrix
 from sklearn.metrics import f1_score
 from tqdm import tqdm
 import itertools
@@ -87,6 +87,7 @@ owl_self_labelled_count_class_1 = 0
 owl_analyst_labelled_count_class_0 = 0
 owl_analyst_labelled_count_class_1 = 0
 truth_agreement_fraction_0, truth_agreement_fraction_1 = 0, 0
+adp_attack_cos_dist,adp_benign_cos_dist = 0,0
 
 CI_list = []
 avg_CI = None
@@ -364,6 +365,100 @@ class dataset(Dataset):
         return self.length
 
 
+def select_adaptive_percentile(candidate_thresholds):
+    """
+    Select cosine-distance percentile using only tail behavior.
+    Fully empirical and dataset-agnostic.
+    """
+
+    ct = np.asarray(candidate_thresholds)
+
+    if len(ct) < 10:
+        # Conservative fallback for very small samples
+        p = 95
+        return p, np.percentile(ct, p)
+
+    # Robust tail statistics
+    p50 = np.percentile(ct, 50)
+    p99 = np.percentile(ct, 99)
+
+    # Tail heaviness (scale-free)
+    tail_ratio = p99 / (p50 + 1e-8)
+
+    # Tail-driven decision
+    if tail_ratio > 20:
+        chosen_percentile = 99      # very heavy tail
+    elif tail_ratio > 10:
+        chosen_percentile = 90      # moderately heavy tail
+    else:
+        chosen_percentile = 25      # light tail
+
+    selected_threshold = np.percentile(ct, chosen_percentile)
+
+    return chosen_percentile, selected_threshold
+
+
+def compute_distill_loss_with_confidence(unlabeled_pre,unlabeled_x):
+    
+    global teacher_model1,teacher_model2,teacher_supervised,student_model1,student_model2,student_supervised
+
+    predicted_labels,confident_unlabeled_pre = None,None
+
+    if image_resolution is not None:
+       unlabeled_x = unlabeled_x.reshape(image_resolution)
+
+    if mlps == 1:
+        models = [student_model1]
+    elif mlps == 2:
+        models = [student_model1,student_model2]
+    else:
+        models = [student_model1,student_model2,student_supervised]    
+
+    #models = [teacher_model1,teacher_model2]#,teacher_supervised] 
+    
+    class_probs = []  
+
+    with torch.no_grad():
+        for model in models:
+            outputs = torch.softmax(model(unlabeled_x), dim=1)
+            class_probs.append(outputs)
+
+    avg_probs = torch.stack(class_probs).mean(dim=0)
+    max_probs, _ = torch.max(avg_probs, dim=1)
+
+# 2. Confidence threshold
+    mask = max_probs > 0.95
+
+# 3. Safeguard: proceed only if confident samples exist
+    if mask.any():
+        # 4. Restrict to confident samples ONLY
+        confident_probs = avg_probs[mask]
+        confident_unlabeled_pre = unlabeled_pre[mask]
+
+        # 5. Argmax ONLY on confident samples
+        predicted_labels = torch.argmax(confident_probs, dim=1)
+
+        # 6. One-hot pseudo-labels
+        unlabeled_gt = F.one_hot(predicted_labels, num_classes=2)
+
+        # 7. Distillation loss
+        distillation_loss = loss_fn(
+            confident_unlabeled_pre.float(),
+            unlabeled_gt.float()
+    )
+
+    else:
+
+    # No confident samples → no gradient contribution
+        distillation_loss = torch.tensor(
+        0.0, device=avg_probs.device, requires_grad=False
+        )
+    
+
+    return [distillation_loss,predicted_labels,confident_unlabeled_pre]
+
+
+
 def compute_distill_loss(unlabeled_pre,unlabeled_x):
     
     global teacher_model1,teacher_model2,teacher_supervised,student_model1,student_model2,student_supervised
@@ -566,12 +661,343 @@ def sample_batch_from_memory(mem_batchsize,minority_alloc):
         return memory_X[minority_class_indices],memory_y[minority_class_indices],memory_y_name[minority_class_indices]
     
     
+# def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
+
+#     global owl_self_labelled_count_class_0, owl_self_labelled_count_class_1
+#     global owl_analyst_labelled_count_class_0, owl_analyst_labelled_count_class_1
+#     global truth_agreement_fraction_0,truth_agreement_fraction_1
+#     global avg_CI
+
+#     print(f'X shape: {X.shape}')
+#     dummy_target_label = torch.zeros(X.shape[0])
+#     data_loader = torch.utils.data.DataLoader(dataset(X,dummy_target_label),
+#                                             batch_size=batch_size,
+#                                             #    sampler=valid_sampler,
+#                                             num_workers=0)
+        
+#     predictions,predicted_labels = None,None
+
+#     if mlps == 1:
+#         models = [student_model1]
+#     elif mlps == 2:
+#         models = [student_model1,student_model2]
+#     else:
+#         models = [student_model1,student_model2,student_supervised]
+    
+#     for data, _ in data_loader:
+#         class_probs = [] 
+#         with torch.no_grad():
+#             for model in models:
+#                 outputs = torch.softmax(model(data.to(device)), dim=1)
+#                 class_probs.append(outputs)
+        
+#             pred = torch.stack(class_probs).mean(dim=0)#[:,1].reshape(target.shape)
+#             if predictions is None:
+#                 predictions = pred
+#                 predicted_labels = torch.argmax(pred,dim=1)
+#             else:
+#                 predictions = torch.cat((predictions,pred),dim=0)   
+#                 predicted_labels = torch.cat((predicted_labels,torch.argmax(pred,dim=1)),dim=0) 
+
+#     # Step 2: Extracting the high confidence samples for class 0 and class 1 respectively 
+#     class_0_indices = ((predicted_labels == 0).nonzero(as_tuple=False)[:, 0]).detach().cpu().numpy()
+#     class_1_indices = ((predicted_labels == 1).nonzero(as_tuple=False)[:, 0]).detach().cpu().numpy()
+    
+#     print(f'Number of predicted 0s: {len(class_0_indices)}')
+#     print(f'Number of predicted 1s: {len(class_1_indices)}')
+
+#     total_samples = X.shape[0]    
+#     est_class_1_samples = int(total_samples*avg_CI)    
+#     est_class_0_samples = total_samples - est_class_1_samples
+#     print(f'Estimated no. of class 0 samples = {est_class_0_samples}')
+#     print(f'Estimated no. of class 1 samples = {est_class_1_samples}')
+    
+#     sorted_pred_class_0 = torch.sort(predictions[class_0_indices, 0], dim=0, descending=True)    
+#     top_class_0_indices = sorted_pred_class_0[1][sorted_pred_class_0[0] > 0.8].detach().cpu()
+#     if len(top_class_0_indices) > int(labels_ratio*est_class_0_samples):
+#         top_class_0_indices = top_class_0_indices[:int(labels_ratio*est_class_0_samples)]
+#     print(f'(few) Highest confidence prediction values (class 0): {sorted_pred_class_0[0][:4]}')
+
+#     # print(predictions[class_1_indices, 1])
+#     sorted_pred_class_1 = torch.sort(predictions[class_1_indices, 1], dim=0, descending=True)
+#     top_class_1_indices = (sorted_pred_class_1[1][sorted_pred_class_1[0] > 0.8]).detach().cpu()
+#     if len(top_class_1_indices) > int(labels_ratio*est_class_1_samples):
+#         top_class_1_indices = top_class_1_indices[:int(labels_ratio*est_class_1_samples)]
+#     print(f'(few) Highest confidence prediction values (class 1): {sorted_pred_class_1[0][:4]}')
+    
+#     labeled_X,labeled_y,labeled_y_classname = None, None, None
+#     X_unlab = None
+#     unlabeled_indicies, labeled_indicies = np.array([]), np.array([])
+#     member_inference_class_0 = 0 # dummy assignment
+#     member_inference_class_1 = 1 # dummy assignment
+#     selection_count_0, selection_count_1 = 0, 0
+#     n_agreements_0, n_agreements_1 = 0, 0
+#     curr_truth_agreement_fraction_0, curr_truth_agreement_fraction_1 = 0, 0
+
+#     # Computing the sample means for each class in memory
+#     sample_means = None
+#     associated_label = []
+
+#     class_in_memory = np.unique(memory_y_name)
+#     print(f'\nclasses in memory: {class_in_memory}')
+
+#     for class_idx in class_in_memory:
+#         indices = np.where(memory_y_name == int(class_idx))[0]
+#         if str(int(class_idx)) in minorityclass_ids:
+#             associated_label.append(1)
+#         else:
+#             associated_label.append(0)
+
+#         if sample_means is None:
+#             sample_means = torch.mean(torch.tensor(memory_X[indices]), dim=0).unsqueeze(0)
+#         else:
+#             sample_means = torch.cat((sample_means, torch.mean(torch.tensor(memory_X[indices]), dim=0).unsqueeze(0)), dim=0)
+#     associated_label = np.array(associated_label)
+
+#     # Setting unique y_classname labels for the new unseen labelled data (for buffer memory storage purpose)
+#     if unseen_task:
+#         attack_y_name = np.max(class_in_memory) + 1
+#         benign_y_name = np.max(class_in_memory) + 2
+#         print(f'New classes added to memory: {attack_y_name}, {benign_y_name}')
+
+#     if len(top_class_0_indices) != 0:
+
+#         top_class_0_data = X[class_0_indices[top_class_0_indices]]
+#         top_class_0_truth = y[class_0_indices[top_class_0_indices]]
+#         top_class_0_y_classname = y_classname[class_0_indices[top_class_0_indices]]
+
+#         # Member inference of the top samples based on distance from buffer memory samples
+#         start_inference = time.time()
+#         cos_dist = cdist(top_class_0_data, memory_X,'cosine')   
+#         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
+#         # top_k_indices = sorted_indices_temp[:, :1000]
+#         # # Create boolean mask with True for top k indices, False otherwise
+#         # mask = np.zeros_like(cos_dist, dtype=bool)
+#         # mask[np.arange(len(cos_dist))[:, None], top_k_indices] = True
+#         # filtered_indices = mask
+#         # # filtered_indices = cos_dist <max_value
+#         # row_indices_to_keep = np.any(filtered_indices, axis=1)
+#         # filtered_arr = filtered_indices[row_indices_to_keep]  
+#         # top_class_0_indices = top_class_0_indices[row_indices_to_keep]#removes the indices whose cosine distance > 0.2 
+#         # top_class_0_truth = top_class_0_truth[row_indices_to_keep]#removes the indices whose cosine distance > 0.2        
+#         # maj_labels = []
+#         # for row in filtered_arr:
+#         #     maj_labels.append(stats.mode(memory_y[row])[0])
+#         # maj_labels = np.array(maj_labels)          
+#         # member_inference_class_0 = np.asarray(maj_labels.ravel().tolist())
+#         # member_inference_class_0 = np.asarray(maj_labels)
+#         maj_labels = []
+#         row_indices_to_keep = []
+#         percentage_mode_value_contributors = []
+#         Avg_sample_support = []
+#         Avg_sample_support_counter = 0
+#         filtered_indices = cos_dist < cos_dist_ip
+#         print(top_class_0_data.shape,filtered_indices.shape)
+#         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
+#         rows_to_keep = np.any(filtered_indices, axis=1)
+#         for i in range(filtered_indices.shape[0]):
+#             valid_indices = np.where(filtered_indices[i])[0]
+#             if valid_indices.size > 0:
+#                 Avg_sample_support_counter += 1
+#                 Avg_sample_support.append(valid_indices.size)
+#                 Mode_value_and_count = stats.mode(memory_y[valid_indices])
+#                 Mode_value_percentage = (Mode_value_and_count[1]/valid_indices.size)*100
+#                 if Mode_value_percentage > mode_value:
+#                     maj_labels.append(Mode_value_and_count[0])
+#                     percentage_mode_value_contributors.append(Mode_value_percentage)
+#                 else:
+#                     maj_labels.append(1) 
+                
+#                 # rows_to_keep.append(True)
+#             else:
+#                 maj_labels.append(1)#Adding a flipped label for class 0 samples as no confident labels (cost dis <0.2) found in the memory    
+#                 # rowrows_to_keeps_to_keep.append(False)
+#         print(len(maj_labels))      
+#         # exit()  
+#         maj_labels = np.array(maj_labels)
+#         member_inference_class_0 = np.asarray(maj_labels.ravel().tolist())
+#         # member_inference_class_0 = np.asarray(maj_labels)
+#         print("Average number of sample support for Attack is", stats.tmean(Avg_sample_support), stats.tstd(Avg_sample_support))
+#         print("Percentage of samples contributed to each Attack sample is",stats.tmean(percentage_mode_value_contributors),stats.tstd(percentage_mode_value_contributors))
+#         # top_class_0_indices = top_class_0_indices[rows_to_keep]#removes the indices whose cosine distance > 0.2 
+#         # top_class_0_truth = top_class_0_truth[rows_to_keep]#removes the indices whose cosine distance > 0.2           
+
+       
+
+        
+#         end_inference = time.time()
+#         print(f'\nNumber of class 0 agreements (between model and member inference): {np.sum(member_inference_class_0 == 0)}/{len(member_inference_class_0)} - ({np.sum(member_inference_class_0 == 0)*100./len(member_inference_class_0):.3f}%)')
+#         print(f'Number of class 0 common agreements with ground truth: {np.sum(top_class_0_truth[member_inference_class_0 == 0] == 0)}/{np.sum(member_inference_class_0 == 0)} - ({np.sum(top_class_0_truth[member_inference_class_0 == 0] == 0)*100./np.sum(member_inference_class_0 == 0):.3f}%)')
+#         print(f'Time taken for member inference = {end_inference - start_inference}seconds')
+
+#         n_agreements_0 = np.sum(member_inference_class_0 == 0)
+#         curr_truth_agreement_fraction_0 = np.sum(top_class_0_truth[member_inference_class_0 == 0] == 0)/np.sum(member_inference_class_0 == 0)
+#         if math.isnan(curr_truth_agreement_fraction_0):
+#             curr_truth_agreement_fraction_0 = 0
+
+#         # 0-(self)labelled data
+#         if unseen_task:
+#             if n_agreements_0 > 0:
+#                 if truth_agreement_fraction_0 is None or math.isnan(truth_agreement_fraction_0):
+#                     truth_agreement_fraction_0 = 1
+#                 selection_count_0 = int(n_agreements_0*truth_agreement_fraction_0)
+#                 selected_0_indices = np.random.choice(top_class_0_indices[member_inference_class_0 == 0], size=selection_count_0, replace=False)
+#                 labeled_indicies = np.hstack((labeled_indicies, selected_0_indices))
+
+#                 labeled_X = np.vstack((labeled_X, X[selected_0_indices])) if labeled_X is not None else X[selected_0_indices]
+#                 labeled_y = np.hstack((labeled_y, [0]*selection_count_0)) if labeled_y is not None else [0]*selection_count_0
+#                 labeled_y_classname = np.hstack((labeled_y_classname, [benign_y_name]*selection_count_0)) if labeled_y_classname is not None else [benign_y_name]*selection_count_0
+#                 print(f'No. of self-labelled samples (class 0): {selection_count_0}')
+
+#                 owl_self_labelled_count_class_0 += selection_count_0
+#             else:
+#                 print('No. of self-labelled samples (class 0): 0')
+
+#     if len(top_class_1_indices) > 1:#!= 0:
+    
+#         top_class_1_data = X[class_1_indices[top_class_1_indices]]
+#         top_class_1_truth = y[class_1_indices[top_class_1_indices]]
+#         top_class_1_y_classname = y_classname[class_1_indices[top_class_1_indices]]
+ 
+#         # Member inference of the top samples based on distance from sample means
+#         start_inference = time.time()
+#         cos_dist = cdist(top_class_1_data, memory_X,'cosine')   
+#         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
+#         # top_k_indices = sorted_indices_temp[:, :1000]
+#         # # Create boolean mask with True for top k indices, False otherwise
+#         # mask = np.zeros_like(cos_dist, dtype=bool)
+#         # mask[np.arange(len(cos_dist))[:, None], top_k_indices] = True        
+#         # filtered_indices = mask
+#         # # filtered_indices = cos_dist <max_value
+#         # row_indices_to_keep = np.any(filtered_indices, axis=1)
+#         # filtered_arr = filtered_indices[row_indices_to_keep]  
+#         # top_class_1_indices = top_class_1_indices[row_indices_to_keep]#removes the indices whose cosine distance > 0.2 
+#         # top_class_1_truth = top_class_1_truth[row_indices_to_keep]#removes the indices whose cosine distance > 0.2        
+#         # maj_labels = []
+#         # for row in filtered_arr:
+#         #     maj_labels.append(stats.mode(memory_y[row])[0])
+#         # maj_labels = np.array(maj_labels)    
+#         # maj_labels = []
+#         # for row in filtered_arr:
+#         #     maj_labels.append(stats.mode(memory_y[row])[0])
+#         # maj_labels = np.array(maj_labels)          
+#         # member_inference_class_0 = np.asarray(maj_labels.ravel().tolist())
+#         # member_inference_class_0 = np.asarray(maj_labels)
+#         maj_labels = []
+#         row_indices_to_keep = []
+#         percentage_mode_value_contributors = []
+#         Avg_sample_support = []
+#         Avg_sample_support_counter = 0
+#         filtered_indices = cos_dist < cos_dist_ip
+#         print(top_class_1_data.shape,filtered_indices.shape)
+#         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
+#         rows_to_keep = np.any(filtered_indices, axis=1)
+#         for i in range(filtered_indices.shape[0]):
+#             valid_indices = np.where(filtered_indices[i])[0]
+#             if valid_indices.size > 0:
+#                 Avg_sample_support_counter += 1
+#                 Avg_sample_support.append(valid_indices.size)
+#                 Mode_value_and_count = stats.mode(memory_y[valid_indices])
+#                 Mode_value_percentage = (Mode_value_and_count[1]/valid_indices.size)*100
+#                 if Mode_value_percentage > mode_value:
+#                     maj_labels.append(Mode_value_and_count[0])
+#                     percentage_mode_value_contributors.append(Mode_value_percentage)
+#                 else:
+#                     maj_labels.append(0)    
+
+#                 # rows_to_keep.append(True)
+#             else:
+#                 maj_labels.append(0)#Adding a flipped label for class 0 samples as no confident labels found in the memory    
+#             #     rows_to_keep.append(False)
+#         print(len(maj_labels))    
+#         maj_labels = np.array(maj_labels)
+#         member_inference_class_1 = np.asarray(maj_labels.ravel().tolist())
+#         print("Average number of sample support for Attack is", stats.tmean(Avg_sample_support), stats.tstd(Avg_sample_support))
+#         print("Percentage of samples contributed to each Attack sample is",stats.tmean(percentage_mode_value_contributors),stats.tstd(percentage_mode_value_contributors))
+#         # member_inference_class_1 = np.asarray(maj_labels)
+#         # top_class_1_indices = top_class_1_indices[rows_to_keep]#removes the indices whose cosine distance > 0.2 
+#         # top_class_1_truth = top_class_1_truth[rows_to_keep]#removes the indices whose cosine distance > 0.2 
+#         # member_inference_class_1 = np.asarray(maj_labels.ravel().tolist())
+#         end_inference = time.time()
+#         print(f'\nNumber of class 1 agreements (between model and member inference): {np.sum(member_inference_class_1 == 1)}/{len(member_inference_class_1)} - ({np.sum(member_inference_class_1 == 1)*100./len(member_inference_class_1):.3f})%')
+#         print(f'Number of class 1 common agreements with ground truth: {np.sum(top_class_1_truth[member_inference_class_1 == 1] == 1)}/{np.sum(member_inference_class_1 == 1)} - ({np.sum(top_class_1_truth[member_inference_class_1 == 1] == 1)*100./np.sum(member_inference_class_1 == 1):.3f}%)')
+#         print(f'Time taken for member inference = {end_inference - start_inference}seconds')
+
+#         n_agreements_1 = np.sum(member_inference_class_1 == 1)
+#         curr_truth_agreement_fraction_1 = np.sum(top_class_1_truth[member_inference_class_1 == 1] == 1)/np.sum(member_inference_class_1 == 1)
+#         if math.isnan(curr_truth_agreement_fraction_1):
+#             curr_truth_agreement_fraction_1 = 0
+
+#         # 1-(self)labelled data
+#         if unseen_task:
+#             if n_agreements_1 > 0:
+#                 if truth_agreement_fraction_1 is None or math.isnan(truth_agreement_fraction_1):
+#                     truth_agreement_fraction_1 = 1
+                
+#                 selection_count_1 = int(n_agreements_1*truth_agreement_fraction_1)
+#                 selected_1_indices = np.random.choice(top_class_1_indices[member_inference_class_1 == 1], size=selection_count_1, replace=False)
+#                 labeled_indicies = np.hstack((labeled_indicies, selected_1_indices))
+
+#                 labeled_X = np.vstack((labeled_X, X[selected_1_indices])) if labeled_X is not None else X[selected_1_indices]
+#                 labeled_y = np.hstack((labeled_y, [1]*selection_count_1)) if labeled_y is not None else [1]*selection_count_1
+#                 labeled_y_classname = np.hstack((labeled_y_classname, [attack_y_name]*selection_count_1)) if labeled_y_classname is not None else [attack_y_name]*selection_count_1
+                
+#                 print(f'No. of self-labelled samples (class 1): {selection_count_1}')
+#                 owl_self_labelled_count_class_1 += selection_count_1
+#             else:
+#                 print('No. of self-labelled samples (class 1): 0')
+
+#     if not unseen_task:
+#         return [curr_truth_agreement_fraction_0, curr_truth_agreement_fraction_1]
+    
+#     print(f'\nTotal no. of self-labeled samples = {selection_count_0 + selection_count_1} (0: {selection_count_0}, 1: {selection_count_1})')
+
+#     # Get security analyst to label the remaining high confidence samples
+#     count_class_0 = int(labels_ratio*est_class_0_samples) - selection_count_0 #- n_agreements_0
+#     count_class_1 = int(labels_ratio*est_class_1_samples) - selection_count_1 #- n_agreements_1
+    
+#     remaining_indices = np.setdiff1d(np.arange(X.shape[0]), labeled_indicies)
+#     y_rem = y[remaining_indices]
+   
+#     remaining_0_indices = remaining_indices[np.where(y_rem == 0)[0]] # remaining indices where y == 0 
+#     remaining_1_indices = remaining_indices[np.where(y_rem == 1)[0]] # remaining indices where y == 1
+#     print(len(remaining_0_indices), count_class_0)
+#     selected_0_indices = np.random.choice(remaining_0_indices, size=min(len(remaining_0_indices), count_class_0), replace=False)
+#     selected_1_indices = np.random.choice(remaining_1_indices, size=min(len(remaining_1_indices), count_class_1), replace=False)
+
+#     temp_X = np.vstack((X[selected_0_indices], X[selected_1_indices]))
+#     temp_y = np.hstack(([0]*count_class_0, [1]*count_class_1))
+#     temp_y_classname = np.hstack(([benign_y_name]*count_class_0, [attack_y_name]*count_class_1))
+#     print(f'No. of security analyst-labelled samples: {temp_X.shape[0]} (0:{len(selected_0_indices)}, 1:{len(selected_1_indices)})')
+
+#     owl_analyst_labelled_count_class_0 += len(selected_0_indices)
+#     owl_analyst_labelled_count_class_1 += len(selected_1_indices)
+
+#     labeled_X = np.vstack((labeled_X, temp_X)) if labeled_X is not None else temp_X
+#     labeled_y = np.hstack((labeled_y, temp_y)) if labeled_y is not None else temp_y
+#     labeled_y_classname = np.hstack((labeled_y_classname, temp_y_classname)) if labeled_y_classname is not None else temp_y_classname
+#     labeled_indicies = np.hstack((labeled_indicies, np.hstack((selected_0_indices, selected_1_indices))))
+#     print(f'Total no. of labelled samples: {labeled_X.shape[0]}')
+
+#     unlabeled_indicies = np.setdiff1d(np.arange(X.shape[0]), labeled_indicies)
+#     X_unlab = X[unlabeled_indicies]
+#     y_unlab = y[unlabeled_indicies]
+#     y_classname_unlab = y_classname[unlabeled_indicies]
+#     print(f'No. of unlabelled samples: {X_unlab.shape}\n')
+
+#     labeled_indicies = labeled_indicies.astype(int)
+#     unlabeled_indicies = unlabeled_indicies.astype(int)
+
+#     return labeled_X,labeled_y,labeled_y_classname, X_unlab, labeled_indicies,unlabeled_indicies
+
 def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
 
     global owl_self_labelled_count_class_0, owl_self_labelled_count_class_1
     global owl_analyst_labelled_count_class_0, owl_analyst_labelled_count_class_1
     global truth_agreement_fraction_0,truth_agreement_fraction_1
     global avg_CI
+    global adp_attack_cos_dist,adp_benign_cos_dist
+    amount_of_samples = 0
 
     print(f'X shape: {X.shape}')
     dummy_target_label = torch.zeros(X.shape[0])
@@ -673,7 +1099,91 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
 
         # Member inference of the top samples based on distance from buffer memory samples
         start_inference = time.time()
-        cos_dist = cdist(top_class_0_data, memory_X,'cosine')   
+        cos_dist = cdist(top_class_0_data, memory_X,'cosine')  
+        
+        if unseen_task == False:
+            # ================= Estimate cos_dist_ adaptively for benign =================
+            memory_y_np = np.asarray(memory_y) 
+            candidate_thresholds = []
+            cos_time = time.time()
+            for i in range(cos_dist.shape[0]):
+                # sort memory samples by cosine distance
+                sorted_idx = np.argsort(cos_dist[i])
+                sorted_dist = cos_dist[i][sorted_idx]
+                # sorted_labels = memory_y[sorted_idx]
+                sorted_labels = memory_y_np[sorted_idx]
+
+                # progressively expand neighborhood
+                benign_count = 0
+                attack_count = 0
+                amount_of_samples = int(0.05*len(sorted_labels))
+                loop_range = amount_of_samples
+                # print('loop range in benign',amount_of_samples)
+                for k in range(0, len(sorted_labels), loop_range):
+                    chunk = sorted_labels[k:k + loop_range]
+
+                    # count labels in this chunk
+                    benign_count += np.sum(chunk == 0)
+                    attack_count += np.sum(chunk == 1)
+
+                    total = benign_count + attack_count
+                    if total == 0:
+                        continue
+
+                    # compute benign agreement
+                    mode_percentage = (max(benign_count, attack_count) / total) * 100
+                    mode_label = 0 if benign_count >= attack_count else 1
+
+                    if mode_label == 0 and mode_percentage >= mode_value:
+                        candidate_thresholds.append(sorted_dist[min(k + loop_range-1, len(sorted_dist) - 1)])
+                        break
+                # for k in range(5, len(sorted_dist), 500):  # small neighborhoods first
+                #     neighbor_labels = sorted_labels[:k]
+                #     mode_label, mode_count = stats.mode(neighbor_labels)
+                #     mode_percentage = (mode_count / k) * 100
+
+                #     # accept only if benign agreement is strong
+                #     if mode_label == 0 and mode_percentage >= mode_value:
+                #         candidate_thresholds.append(sorted_dist[k - 1])
+                #         break
+                    
+
+            # robust aggregation
+            # print(candidate_thresholds)
+            print(
+    f"candidate_thresholds | "
+    f"min: {min(candidate_thresholds):.4f}, "
+    f"max: {max(candidate_thresholds):.4f}, "
+    f"avg: {sum(candidate_thresholds)/len(candidate_thresholds):.4f},"
+    f"25 percentile: {np.percentile(candidate_thresholds, 25):.4f},"
+    f"50 percentile: {np.percentile(candidate_thresholds, 50):.4f},"
+    f"75 percentile: {np.percentile(candidate_thresholds, 75):.4f},"
+    f"90 percentile: {np.percentile(candidate_thresholds, 90):.4f},"
+    f"95 percentile: {np.percentile(candidate_thresholds, 95):.4f},"
+    f"98 percentile: {np.percentile(candidate_thresholds, 98):.4f},"
+    f"99 percentile: {np.percentile(candidate_thresholds, 99):.4f},"
+)
+
+            # exit()
+            if len(candidate_thresholds) > 0:
+                if adp_benign_cos_dist > 0:
+                    # adp_benign_cos_dist = 0.9 * adp_benign_cos_dist + 0.1 * np.percentile(candidate_thresholds, 99)
+                    # adp_benign_cos_dist = 0.9 * adp_benign_cos_dist + 0.1 * select_adaptive_percentile(candidate_thresholds)[1]
+                    adp_benign_cos_dist = 0.1 * adp_benign_cos_dist + 0.9 * select_adaptive_percentile(candidate_thresholds)[1]
+                                   
+                else:
+                    # adp_benign_cos_dist = np.percentile(candidate_thresholds, 99)
+                    adp_benign_cos_dist = select_adaptive_percentile(candidate_thresholds)[1]
+                # cos_dist_ip = np.percentile(candidate_thresholds, 75)
+            else:
+                adp_benign_cos_dist = 0.2
+                # cos_dist_ip = 0.2  # safe fallback
+
+            time_elapsed = time.time()-cos_time
+            print(f"[TIMER] Task-level cos_dist_ip computation time: {time_elapsed:.2f} seconds")
+            print(f"[INFO] Adaptive cosine distance threshold = {adp_benign_cos_dist:.4f}")
+        # exit()
+
         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
         # top_k_indices = sorted_indices_temp[:, :1000]
         # # Create boolean mask with True for top k indices, False otherwise
@@ -696,7 +1206,8 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         percentage_mode_value_contributors = []
         Avg_sample_support = []
         Avg_sample_support_counter = 0
-        filtered_indices = cos_dist < cos_dist_ip
+        # filtered_indices = cos_dist < cos_dist_ip
+        filtered_indices = cos_dist < adp_benign_cos_dist
         print(top_class_0_data.shape,filtered_indices.shape)
         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
         rows_to_keep = np.any(filtered_indices, axis=1)
@@ -767,6 +1278,81 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         # Member inference of the top samples based on distance from sample means
         start_inference = time.time()
         cos_dist = cdist(top_class_1_data, memory_X,'cosine')   
+        if unseen_task == False:
+
+            # ================= Estimate cos_dist_ adaptively for attack =================
+            memory_y_np = np.asarray(memory_y)
+            candidate_thresholds_attack = []
+
+            cos_time = time.time()
+
+            for i in range(cos_dist.shape[0]):
+
+                # sort memory samples by cosine distance
+                sorted_idx = np.argsort(cos_dist[i])
+                sorted_dist = cos_dist[i][sorted_idx]
+                sorted_labels = memory_y_np[sorted_idx]
+
+                benign_count = 0
+                attack_count = 0
+                if amount_of_samples == 0:
+                    amount_of_samples = int(0.05*len(sorted_labels))
+                # print('loop range in attack',amount_of_samples)
+                # exit()
+                loop_range = amount_of_samples  # chunk size
+
+                for k in range(0, len(sorted_labels), loop_range):
+                    chunk = sorted_labels[k:k + loop_range]
+
+                    # count labels in this chunk
+                    benign_count += np.sum(chunk == 0)
+                    attack_count += np.sum(chunk == 1)
+
+                    total = benign_count + attack_count
+                    if total == 0:
+                        continue
+
+                    # compute attack agreement
+                    mode_percentage = (max(benign_count, attack_count) / total) * 100
+                    mode_label = 1 if attack_count >= benign_count else 0
+
+                    # accept only if ATTACK agreement is strong
+                    if mode_label == 1 and mode_percentage >= mode_value:
+                        candidate_thresholds_attack.append(
+                            sorted_dist[min(k + loop_range - 1, len(sorted_dist) - 1)]
+                        )
+                        break
+    #         print(
+    # f"candidate_thresholds | "
+    # f"min: {min(candidate_thresholds_attack):.4f}, "
+    # f"max: {max(candidate_thresholds_attack):.4f}, "
+    # f"avg: {sum(candidate_thresholds_attack)/len(candidate_thresholds_attack):.4f},"
+    # f"25 percentile: {np.percentile(candidate_thresholds_attack, 25):.4f},"
+    # f"50 percentile: {np.percentile(candidate_thresholds_attack, 50):.4f},"
+    # f"75 percentile: {np.percentile(candidate_thresholds_attack, 75):.4f},"
+    # f"90 percentile: {np.percentile(candidate_thresholds_attack, 90):.4f},"
+    # f"95 percentile: {np.percentile(candidate_thresholds_attack, 95):.4f},"
+    # f"98 percentile: {np.percentile(candidate_thresholds_attack, 98):.4f},"
+    # f"99 percentile: {np.percentile(candidate_thresholds_attack, 99):.4f},"
+# )
+            # exit()
+            # robust aggregation
+            if len(candidate_thresholds_attack) > 0:
+                if adp_attack_cos_dist > 0:
+                    # adp_attack_cos_dist = 0.9*adp_attack_cos_dist+0.1*np.percentile(candidate_thresholds_attack, 99)
+                    # adp_attack_cos_dist = 0.9*adp_attack_cos_dist+0.1*select_adaptive_percentile(candidate_thresholds_attack)[1]
+                    adp_attack_cos_dist = 0.1*adp_attack_cos_dist+0.9*select_adaptive_percentile(candidate_thresholds_attack)[1]
+                else:
+                    # adp_attack_cos_dist = np.percentile(candidate_thresholds_attack, 99)
+                    adp_attack_cos_dist = select_adaptive_percentile(candidate_thresholds_attack)[1]
+            # else:
+            #     adp_attack_cos_dist = 0.2  # safe fallback
+
+            time_elapsed = time.time() - cos_time
+            print(f"[TIMER] Adaptive ATTACK cosine distance estimation: {time_elapsed:.3f}s")
+            print(f"[INFO] Adaptive cosine distance threshold = {adp_attack_cos_dist:.4f}")
+            # exit()
+
         # sorted_indices_temp = np.argsort(cos_dist, axis=1)[::-1]
         # top_k_indices = sorted_indices_temp[:, :1000]
         # # Create boolean mask with True for top k indices, False otherwise
@@ -793,7 +1379,8 @@ def owl_data_labeling_strategy(X, y, y_classname, unseen_task=True):
         percentage_mode_value_contributors = []
         Avg_sample_support = []
         Avg_sample_support_counter = 0
-        filtered_indices = cos_dist < cos_dist_ip
+        # filtered_indices = cos_dist < cos_dist_ip
+        filtered_indices = cos_dist < adp_attack_cos_dist
         print(top_class_1_data.shape,filtered_indices.shape)
         row_indices_to_keep = np.where(np.any(filtered_indices, axis=1))[0]
         rows_to_keep = np.any(filtered_indices, axis=1)
@@ -1474,8 +2061,8 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
     avg_valid_losses = [] 
     check_point_file_name = "checkpoint"+str(os.getpid())+".pt"
     check_point_file_name_norm = "checkpoint"+str(os.getpid())+"grad_norm"+".pt"
-    early_stopping = EarlyStopping(patience=3, verbose=True,path=check_point_file_name)
-    gradient_rejection = GradientRejection(patience=2, verbose=True,path=check_point_file_name_norm)
+    early_stopping = EarlyStopping(patience=3, verbose=True,delta=0.001,path=check_point_file_name)
+    gradient_rejection = GradientRejection(patience=2, verbose=True,delta=0.001,path=check_point_file_name_norm)
     scheduler = StepLR(opt, step_size=1, gamma=0.96)
     for epoch in range(epochs):
         # print("epoch",epoch)
@@ -1544,7 +2131,8 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
             if task_id > 0:
                 if str_train_model!="student_supervised":
                     #computing the distillation loss
-                    distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    # distil_loss_list = compute_distill_loss(unlabeled_pred,unlabeled_X)
+                    distil_loss_list = compute_distill_loss_with_confidence(unlabeled_pred,unlabeled_X)
                     distil_loss = distil_loss_list[0]
 
                     # distil_loss = compute_distill_loss_self_supervision(p_m=0.3, K=3,unlabeled_x=unlabeled_X,encoder_model=encoder)
@@ -1930,6 +2518,8 @@ def testing(training_cutoff, seen_data=False):
     prauc_out_pnt = []
     en_prauc_in_pnt = []
     en_prauc_out_pnt = []
+    fpr_pnt = []   # FPR per task (FP / (FP + TN))
+    fnr_pnt = []   # FNR per task (FN / (FN + TP))
 
     if seen_data:
         testing_tasks = task_order[:training_cutoff]
@@ -2033,18 +2623,26 @@ def testing(training_cutoff, seen_data=False):
         prauc_out_pnt.append(auc_precision_recall_1)
         en_prauc_in_pnt.append(en_auc_precision_recall_0)
         en_prauc_out_pnt.append(en_auc_precision_recall_1)
-        
-        # print(f'prauc inliers: {auc_precision_recall_in}')        
-        # print(f'prauc outliers: {auc_precision_recall_out}')                     
+
+        # Compute FPR and FNR at threshold 0.5
+        val_pred_binary = [1 if p >= 0.5 else 0 for p in val_pred]
+        tn, fp, fn, tp = confusion_matrix(val_actual, val_pred_binary, labels=[0, 1]).ravel()
+        fpr_pnt.append(fp / (fp + tn) if (fp + tn) > 0 else 0.0)
+        fnr_pnt.append(fn / (fn + tp) if (fn + tp) > 0 else 0.0)
+
+        # print(f'prauc inliers: {auc_precision_recall_in}')
+        # print(f'prauc outliers: {auc_precision_recall_out}')
         # print('')
-    
+
     N = len(testing_tasks) #number of test tasks
     prauc_in_aut  = 0
     prauc_out_aut = 0
 
     if N<2:
         print('not printing AUT values since it requires atleast 2 test tasks')
-        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+        # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+        #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+        return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
     
     
     for i in range(N-1):
@@ -2078,7 +2676,9 @@ def testing(training_cutoff, seen_data=False):
     # print('Here json dump of the data for easy unparsing')
     # print(f'#pnt_table#{json.dumps(pnt_table)}#end_pnt_table#')
     # print(f'#train_order#{json.dumps(train_order)}#end_train_order#')
-    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N]
+    # indices: [0]=prauc_in_pnt, [1]=prauc_out_pnt, [2]=prauc_in_aut, [3]=prauc_out_aut,
+    #          [4]=training_cutoff, [5]=seen_data, [6]=N, [7]=fpr_pnt, [8]=fnr_pnt
+    return [prauc_in_pnt,prauc_out_pnt,prauc_in_aut,prauc_out_aut,training_cutoff,seen_data,N,fpr_pnt,fnr_pnt]
   
 
 def evaluate_on_sub_testset(test_x,test_y):
