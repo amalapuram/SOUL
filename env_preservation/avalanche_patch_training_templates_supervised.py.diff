@@ -1,0 +1,12 @@
+--- avalanche_new/training/templates/supervised.py	2022-11-12 11:10:00.000000000 +0000
++++ avalanche/training/templates/supervised.py	2022-11-04 12:56:16.000000000 +0000
+@@ -147,7 +147,8 @@
+ 
+     def criterion(self):
+         """Loss function."""
+-        return self._criterion(self.mb_output, self.mb_y)
++        # self.mb_output = torch.nan_to_num(self.mb_output,nan=0)
++        return self._criterion(torch.squeeze(self.mb_output), torch.squeeze(self.mb_y))
+ 
+     def _before_training_exp(self, **kwargs):
+         """Setup to train on a single experience."""

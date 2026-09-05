@@ -1,0 +1,27 @@
+--- avalanche_new/training/plugins/gss_greedy.py	2022-11-12 11:10:00.000000000 +0000
++++ avalanche/training/plugins/gss_greedy.py	2022-10-29 15:00:01.000000000 +0000
+@@ -6,7 +6,7 @@
+ from avalanche.training.plugins.strategy_plugin import SupervisedPlugin
+ 
+ if TYPE_CHECKING:
+-    from ..templates.supervised import SupervisedTemplate
++    from ..templates import SupervisedTemplate
+ 
+ 
+ class GSS_greedyPlugin(SupervisedPlugin):
+@@ -34,7 +34,7 @@
+         self.device = "cpu"
+ 
+         self.ext_mem_list_x = torch.FloatTensor(mem_size, *input_size).fill_(0)
+-        self.ext_mem_list_y = torch.LongTensor(mem_size).fill_(0)
++        self.ext_mem_list_y = torch.FloatTensor(mem_size,1).fill_(0)
+         self.ext_mem_list_current_index = 0
+ 
+         self.buffer_score = torch.FloatTensor(self.mem_size).fill_(0)
+@@ -286,4 +286,4 @@
+             )
+             self.ext_mem_list_current_index += offset
+ 
+-        strategy.model.train()
++        strategy.model.train()
+\ No newline at end of file

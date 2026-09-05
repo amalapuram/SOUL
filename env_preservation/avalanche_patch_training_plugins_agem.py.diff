@@ -1,0 +1,33 @@
+--- avalanche_new/training/plugins/agem.py	2022-11-12 11:10:00.000000000 +0000
++++ avalanche/training/plugins/agem.py	2022-11-04 12:56:11.000000000 +0000
+@@ -3,6 +3,7 @@
+ 
+ import torch
+ from torch.utils.data import random_split
++from torch.utils.data import random_split,SequentialSampler,BatchSampler,Subset
+ 
+ from avalanche.benchmarks.utils import AvalancheDataset
+ from avalanche.benchmarks.utils.data_loader import (
+@@ -55,6 +56,7 @@
+             xref, yref = xref.to(strategy.device), yref.to(strategy.device)
+ 
+             out = avalanche_forward(strategy.model, xref, tid)
++            # out = torch.nan_to_num(out, nan=0)
+             loss = strategy._criterion(out, yref)
+             loss.backward()
+             # gradient can be None for some head on multi-headed models
+@@ -125,9 +127,11 @@
+             )
+         removed_els = len(dataset) - self.patterns_per_experience
+         if removed_els > 0:
+-            dataset, _ = random_split(
+-                dataset, [self.patterns_per_experience, removed_els]
+-            )
++            dataset = Subset(dataset,list(range(0,self.patterns_per_experience)))
++            print(len(dataset))
++            # dataset, _ = random_split(
++            #     dataset, [self.patterns_per_experience, removed_els]
++            # )
+         self.buffers.append(dataset)
+         persistent_workers = num_workers > 0
+         self.buffer_dataloader = GroupBalancedInfiniteDataLoader(

@@ -5,3 +5,5 @@ checkpoint*.pt
 tsne_results/
 temp
 utils/otdd/
+env_preservation/*.tar.gz
+conda_pack.log
