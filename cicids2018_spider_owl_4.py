@@ -1240,21 +1240,23 @@ def owl_data_labeling_strategy(X, y, y_classname, model, unseen_task=True):
         print(f"[BBSE] updated confusion matrix from seen task (rows=true, cols=pred):\n{bbse_confusion_matrix}")
 
     total_samples = X.shape[0]
+    # BBSE DEMOTED TO DIAGNOSTIC-ONLY (see CICIDS2018_CANDIDATE_SELECTION_REDESIGN.md):
+    # gating est_class_1_samples on it was tried and directly regressed real
+    # results (ratio=0.1, seed=1: all-AUT 0.6949->0.5081, attack self-label
+    # accuracy 36.59%->2.13%, RCA traced to task 9 specifically -- BBSE's
+    # confusion matrix, frozen at task 4, cannot tell task 5 (mu_hat_1=0.199,
+    # true prior ~0%) apart from task 9 (mu_hat_1=0.239, true prior high
+    # enough to self-label at 73% accuracy given a large enough pool) --
+    # they need OPPOSITE correction from the same stale matrix, so no single
+    # floor value can get both right. avg_CI (the original mechanism)
+    # empirically wins on real runs despite its own staleness weakness, so
+    # it drives est_class_1_samples again. BBSE still computes and logs its
+    # own estimate every unseen task purely for visibility/future work --
+    # just doesn't gate anything.
     if unseen_task and bbse_confusion_matrix is not None:
-        # BBSE (Lipton et al., ICML 2018): adaptive, ground-truth-free
-        # per-unseen-task class-prior estimate -- replaces the frozen avg_CI
-        # extrapolation (seen-tasks' average, carried forward unchanged)
-        # specifically for unseen tasks, where staleness under label shift
-        # was never actually corrected for. See
-        # CICIDS2018_CDIST_VS_CLUSTERING_ABLATION.md for the synthetic-shift
-        # validation: BBSE recovered a shifted prior to within 0.006 vs.
-        # frozen avg_CI's 0.399 error in that test. Seen tasks keep using
-        # avg_CI unchanged below -- that was never the broken part.
         pi_1 = estimate_class_prior_bbse(bbse_confusion_matrix, predicted_labels.detach().cpu().numpy())
-        est_class_1_samples = int(total_samples * pi_1)
-        print(f"[BBSE] unseen-task class-1 prior estimate: {pi_1:.4f} (frozen avg_CI={avg_CI:.4f})")
-    else:
-        est_class_1_samples = int(total_samples*avg_CI)
+        print(f"[BBSE-DIAGNOSTIC-ONLY] unseen-task class-1 prior estimate: {pi_1:.4f} (using avg_CI={avg_CI:.4f} for actual pool sizing)")
+    est_class_1_samples = int(total_samples*avg_CI)
     est_class_0_samples = total_samples - est_class_1_samples
     print(f'Estimated no. of class 0 samples = {est_class_0_samples}')
     print(f'Estimated no. of class 1 samples = {est_class_1_samples}')
@@ -2140,6 +2142,24 @@ def train(str_train_model,tasks,task_class_ids,task_id,feature_list,threshold,X_
     temp_x = labeled_X[memory_safe_mask]
     temp_y = np.asarray(labeled_y)[memory_safe_mask]
     temp_yname = np.asarray(labeled_y_classname)[memory_safe_mask]
+    # SHUFFLE FIX (see CICIDS2018_CANDIDATE_SELECTION_REDESIGN.md): found via
+    # RCA that memory_update_equal_allocation2 (utils/buffermemory.py, shared,
+    # not modified here) takes indices[0:alloc_count] -- the FIRST alloc_count
+    # array-order matches per class, ignoring everything after. Its own
+    # random_sample_selection=True argument is accepted but never referenced
+    # in the function body -- always dead code, predates this session. Net
+    # effect confirmed directly: the RCA-FIX exclusion above only removes
+    # samples from LATE in this array (self-labels are appended before
+    # analyst-labels), so it never reached the first-alloc_count window that
+    # actually gets used, making the exclusion a complete no-op on final
+    # results (verified: two runs differing only in this exclusion produced
+    # byte-identical output JSON). Shuffling here, entirely within this file,
+    # makes "first alloc_count" actually behave like the random sample the
+    # shared function already claims to perform, without editing shared code.
+    _shuffle_idx = np.random.permutation(len(temp_x))
+    temp_x = temp_x[_shuffle_idx]
+    temp_y = temp_y[_shuffle_idx]
+    temp_yname = temp_yname[_shuffle_idx]
     if task_id > 0 and bool_reorganize_memory:
         mem_start_time = time.time()
         if str(mem_strat) == "replace":

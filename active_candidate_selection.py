@@ -262,7 +262,7 @@ def compute_confusion_matrix_binary(y_true, y_pred):
     return C
 
 
-def estimate_class_prior_bbse(confusion_matrix, y_pred_unseen, min_det=1e-3):
+def estimate_class_prior_bbse(confusion_matrix, y_pred_unseen, min_det=1e-3, min_floor_fraction=0.1):
     """
     BBSE (Lipton et al., ICML 2018): given a confusion matrix C estimated on
     labeled data (rows = true class, cols = predicted class) and the model's
@@ -279,8 +279,23 @@ def estimate_class_prior_bbse(confusion_matrix, y_pred_unseen, min_det=1e-3):
     near-singular (C[1,1] ~= C[0,1] -- the classifier's positive-prediction
     rate barely depends on the true label, so the linear system is not
     reliably invertible with this little information) -- degrading
-    gracefully rather than dividing by ~0 and returning nonsense. Result is
-    always clipped to a valid probability in [0, 1].
+    gracefully rather than dividing by ~0 and returning nonsense.
+
+    FLOOR (found necessary empirically, not in the original paper): C is
+    only ever refreshed from the last task where labels existed. In a
+    continual-learning setting the classifier keeps changing every
+    subsequent task (no new labels to re-estimate C from), so C can go
+    stale several tasks out -- confirmed directly: on a real run, a C
+    estimated 5 tasks earlier drove pi_1 to exactly 0.0 despite the model
+    confidently predicting attack on ~18% of a later task's data, silently
+    zeroing the ENTIRE attack candidate pool for that task (est_class_1_
+    samples = 0) and erasing a self-labeling opportunity that turned out to
+    be genuinely valuable (73% accuracy on a real run once this floor was
+    missing). Flooring pi_1 at min_floor_fraction*mu_hat_1 keeps BBSE's
+    correction (it can still shrink an overestimate a lot, as validated
+    when C is fresh -- see this file's self-test) while preventing a stale
+    C from fully overriding a large, confident raw prediction signal.
+    Result is always clipped to a valid probability in [0, 1].
     """
     y_pred_unseen = np.asarray(y_pred_unseen).astype(int)
     mu_hat_1 = np.mean(y_pred_unseen == 1) if y_pred_unseen.size > 0 else 0.0
@@ -290,6 +305,7 @@ def estimate_class_prior_bbse(confusion_matrix, y_pred_unseen, min_det=1e-3):
         pi_1 = mu_hat_1  # plug-in fallback -- see docstring
     else:
         pi_1 = (mu_hat_1 - confusion_matrix[0, 1]) / denom
+    pi_1 = max(pi_1, min_floor_fraction * mu_hat_1)
     return float(np.clip(pi_1, 0.0, 1.0))
 
 
@@ -407,5 +423,24 @@ if __name__ == "__main__":
     fallback = estimate_class_prior_bbse(C_degenerate, y_pred_unseen)
     print(f"degenerate-C fallback: {fallback:.4f} (expect == plug-in {plugin_estimate:.4f})")
     assert abs(fallback - plugin_estimate) < 1e-9
+
+    # STALE-C REGRESSION TEST: reproduces the exact real-run failure -- a
+    # confusion matrix from several tasks earlier drove pi_1 to exactly 0.0
+    # despite the model confidently predicting attack on ~18% of the new
+    # task's data, silently zeroing the entire candidate pool. The floor
+    # must prevent this without breaking the shift-recovery case above.
+    C_stale = np.array([[0.79331885, 0.20668115], [0.0, 1.0]])  # from the actual failing run
+    y_pred_stale_task = np.zeros(4258242, dtype=int)
+    n_pred_1 = 847402
+    y_pred_stale_task[:n_pred_1] = 1
+    np.random.shuffle(y_pred_stale_task)
+    mu_hat_stale = n_pred_1 / len(y_pred_stale_task)
+    pi_1_unfloored_check = (mu_hat_stale - C_stale[0, 1]) / (C_stale[1, 1] - C_stale[0, 1])
+    pi_1_floored = estimate_class_prior_bbse(C_stale, y_pred_stale_task)
+    print(f"stale-C case: raw BBSE (unfloored) would give {pi_1_unfloored_check:.4f} (clips to 0.0 -- the bug), "
+          f"floored result = {pi_1_floored:.4f} (expect >= {0.1*mu_hat_stale:.4f})")
+    assert pi_1_unfloored_check < 0, "sanity: this synthetic case must reproduce the negative-before-clip bug"
+    assert pi_1_floored >= 0.1 * mu_hat_stale - 1e-9, "floor must prevent full pool zero-out"
+    assert pi_1_floored > 0, "the actual real-run bug: est_class_1_samples must never be forced to exactly 0 when the model made confident positive predictions"
 
     print("\nALL CHECKS PASSED")
